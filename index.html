@@ -588,10 +588,10 @@ const pn=i=>`Cliente ${i+1}`;
 const pc=i=>PC[i%PC.length];
 const el=ts=>{const m=Math.floor((Date.now()-ts)/60000);return m<1?"ahora":`${m}min`;};
 const uc=ts=>{const m=Math.floor((Date.now()-ts)/60000);return m>=20?"#EF4444":m>=10?"#F59E0B":"#22C55E";};
-const tTotal=t=>{const d=S.tables[t];if(!d)return 0;return d.people.reduce((s,p)=>s+p.items.reduce((ss,i)=>ss+i.price*i.qty,0),0);};
-const lTotal=p=>p.items.reduce((s,i)=>s+i.price*i.qty,0);
+const tTotal=t=>{const d=S.tables[t];if(!d||!d.people)return 0;return d.people.reduce((s,p)=>s+(p.items||[]).reduce((ss,i)=>ss+i.price*i.qty,0),0);};
+const lTotal=p=>(p.items||[]).reduce((s,i)=>s+i.price*i.qty,0);
 const pendAll=()=>{
-  const m=Object.values(S.tables).reduce((s,t)=>s+t.people.reduce((ps,p)=>ps+p.items.filter(i=>i.status==='pendiente').length,0),0);
+  const m=Object.values(S.tables).reduce((s,t)=>s+(t.people||[]).reduce((ps,p)=>ps+(p.items||[]).filter(i=>i.status==='pendiente').length,0),0);
   const l=S.pedidos.filter(p=>p.status==='cocina').length;
   return m+l;
 };
@@ -615,7 +615,7 @@ function renderTables(){
   if(!S.tids||!S.tids.length){ S.tids=[1,2,3,4,5,6]; S.ntid=7; }
   const g=$('tables-grid'); g.innerHTML='';
   S.tids.forEach(t=>{
-    const d=S.tables[t];
+    const d=S.tables[t]&&S.tables[t].people?S.tables[t]:null;
     const b=document.createElement('button');
     b.className='mesa-card '+(d?'activa':'libre')+(S.editMode?' edit-mode':'');
     const tot=d?tTotal(t):0;
@@ -695,7 +695,7 @@ function renderDetail(){
   $('d-since').textContent=`● Activa desde ${d.time}`;
   $('d-total-top').textContent=tot>0?fmt(tot):'';
   // tabs
-  $('ptabs').innerHTML=d.people.map((p,i)=>{
+  $('ptabs').innerHTML=(d.people||[]).map((p,i)=>{
     const cnt=p.items.filter(x=>x.status==='nuevo').length;
     const sel=i===S.selPerson;
     return `<button onclick="selP(${i})" class="ptab ${sel?'on':'off'} ${p.items.length?'has':''}">
