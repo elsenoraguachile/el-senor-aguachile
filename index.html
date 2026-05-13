@@ -511,8 +511,8 @@ function setDot(ok){
 }
 
 let S={
-  tids:lg('esa_ti',[1,2,3,4,5,6]),
-  ntid:lg('esa_nt',7),
+  tids:lg('esa_ti',[1,2,3,4,5,6])||[1,2,3,4,5,6],
+  ntid:lg('esa_nt',7)||7,
   tables:lg('esa_tb',{}),
   editMode:false, selTable:null, selPerson:0,
   abrirT:null, abrirP:2,
@@ -538,11 +538,21 @@ async function connectFirebase(){
         if(S.pedidos.length) S.npid=Math.max(...S.pedidos.map(p=>p.id))+1;}
       if(Array.isArray(d.ventas)){S.ventas=d.ventas;ls('esa_v3',S.ventas);}
     }
+    // Si Firebase no tiene mesas guardadas aun, inicializa con las default
+    if(!S.tids||!S.tids.length){ S.tids=[1,2,3,4,5,6]; S.ntid=7; }
     renderTables(); renderLlevar(); refreshFab(); setDot(true);
+    db.ref('tids').on('value',snap=>{
+      const v=snap.val();
+      if(Array.isArray(v)&&v.length>0){S.tids=v;ls('esa_ti',S.tids);renderTables();}
+    });
+    db.ref('ntid').on('value',snap=>{
+      if(typeof snap.val()==='number') S.ntid=snap.val();
+    });
     db.ref('tables').on('value',snap=>{
       const v=snap.val();
-      if(v!==null&&JSON.stringify(v)!==JSON.stringify(S.tables)){
-        S.tables=v;ls('esa_tb',S.tables);
+      const nuevo=v&&typeof v==='object'?v:{};
+      if(JSON.stringify(nuevo)!==JSON.stringify(S.tables)){
+        S.tables=nuevo;ls('esa_tb',S.tables);
         renderTables();
         if(S.selTable) renderDetail();
         if(document.getElementById('kitchen-ov').classList.contains('open')) renderKitchen();
@@ -551,8 +561,9 @@ async function connectFirebase(){
     });
     db.ref('pedidos').on('value',snap=>{
       const v=snap.val();
-      if(v!==null&&JSON.stringify(v)!==JSON.stringify(S.pedidos)){
-        S.pedidos=v;ls('esa_pd',S.pedidos);
+      const nuevo=Array.isArray(v)?v:[];
+      if(JSON.stringify(nuevo)!==JSON.stringify(S.pedidos)){
+        S.pedidos=nuevo;ls('esa_pd',S.pedidos);
         if(S.pedidos.length) S.npid=Math.max(...S.pedidos.map(p=>p.id))+1;
         renderLlevar();
         if(document.getElementById('kitchen-ov').classList.contains('open')) renderKitchen();
@@ -561,7 +572,7 @@ async function connectFirebase(){
     });
     db.ref('ventas').on('value',snap=>{
       const v=snap.val();
-      if(v!==null){S.ventas=v;ls('esa_v3',S.ventas);}
+      if(Array.isArray(v)){S.ventas=v;ls('esa_v3',S.ventas);}
     });
   }catch(e){setDot(false);}
 }
@@ -600,6 +611,8 @@ function goTo(p){
 
 // ══ MESAS ══════════════════════════════════════════════════════════════════════
 function renderTables(){
+  // Garantizar que siempre haya mesas
+  if(!S.tids||!S.tids.length){ S.tids=[1,2,3,4,5,6]; S.ntid=7; }
   const g=$('tables-grid'); g.innerHTML='';
   S.tids.forEach(t=>{
     const d=S.tables[t];
