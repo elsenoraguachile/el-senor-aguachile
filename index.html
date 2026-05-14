@@ -213,9 +213,139 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
 .k-r{animation:glow 2s infinite}
 
 .empty-state{text-align:center;color:#333;padding:50px 20px;font-size:14px;line-height:2}
+
+/* ── LOGIN ── */
+#login-screen{position:fixed;inset:0;background:#080808;z-index:9999;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:24px}
+.login-box{width:100%;max-width:340px}
+.login-logo{text-align:center;margin-bottom:28px}
+.login-logo .lgname{font-weight:900;font-size:18px;letter-spacing:1px;text-transform:uppercase;margin-top:8px}
+.login-logo .lgsub{font-size:9px;color:#CC0000;font-weight:700;letter-spacing:2px;text-transform:uppercase}
+.login-field{margin-bottom:14px}
+.login-field label{display:block;font-size:10px;color:#555;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:7px}
+.login-field input{width:100%;background:#141414;border:1px solid #2D0000;border-radius:10px;padding:13px 14px;color:#F5F0E8;font-size:15px;box-sizing:border-box}
+.login-field input:focus{border-color:#E8000A;outline:none}
+.pin-dots{display:flex;gap:10px;justify-content:center;margin:10px 0 16px}
+.pin-dot{width:16px;height:16px;border-radius:50%;border:2px solid #333;background:transparent;transition:all .2s}
+.pin-dot.filled{background:#E8000A;border-color:#E8000A}
+.pin-pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:16px}
+.pin-key{background:#141414;border:1px solid #252525;border-radius:12px;padding:16px;font-size:20px;font-weight:700;color:#F5F0E8;font-family:inherit}
+.pin-key:active{background:#2A0000}
+.pin-key.del{color:#CC0000}
+.login-error{color:#E8000A;font-size:13px;text-align:center;margin-bottom:10px;min-height:18px;font-weight:600}
+.cocina-link{margin-top:16px;text-align:center}
+.cocina-link button{background:transparent;border:1px solid #252525;color:#555;border-radius:8px;padding:8px 20px;font-size:12px;font-weight:700;font-family:inherit}
+
+/* ── ADMIN MENU EDITOR ── */
+#admin-ov{position:fixed;inset:0;background:#080808;z-index:500;display:none;flex-direction:column;overflow:hidden}
+#admin-ov.open{display:flex}
+.admin-header{background:#0D0D0D;border-bottom:1px solid #2D0000;padding:12px 14px;display:flex;align-items:center;gap:10px;flex-shrink:0}
+.admin-body{flex:1;overflow-y:auto;padding:14px}
+.admin-section{background:#111;border:1px solid #1E1E1E;border-radius:12px;padding:14px;margin-bottom:14px}
+.admin-section-title{font-size:11px;color:#555;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:12px}
+.user-row{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid #1A1A1A}
+.user-name{flex:1;font-weight:700;font-size:14px}
+.user-role{font-size:10px;color:#F59E0B;font-weight:700;padding:2px 8px;background:rgba(245,158,11,.1);border-radius:6px}
+.user-role.admin{color:#E8000A;background:rgba(232,0,10,.1)}
+.del-user{background:#2A0000;border:1px solid #5A0000;color:#FF8080;border-radius:6px;padding:5px 10px;font-size:12px;font-weight:700;font-family:inherit}
+.menu-item-row{display:flex;align-items:center;gap:8px;padding:7px 0;border-bottom:1px solid #1A1A1A}
+.menu-item-info{flex:1;font-size:13px}
+.menu-item-price{font-weight:700;color:#CC0000;font-size:13px}
+.edit-btn{background:#1A2A3A;border:1px solid #2A4A6A;color:#79C0FF;border-radius:6px;padding:5px 10px;font-size:11px;font-weight:700;font-family:inherit}
+.add-form{display:flex;flex-direction:column;gap:8px;margin-top:10px}
+.add-form input,.add-form select{background:#181818;border:1px solid #2D0000;border-radius:8px;padding:9px 12px;color:#F5F0E8;font-size:13px;font-family:inherit}
 </style>
 </head>
 <body>
+
+
+<!-- ════ LOGIN SCREEN ════ -->
+<div id="login-screen">
+  <div class="login-box">
+    <div class="login-logo">
+      <span style="font-size:40px">🦐</span>
+      <div class="lgname">El Señor Aguachile</div>
+      <div class="lgsub">Restaurante de Mariscos</div>
+    </div>
+    <div class="login-field">
+      <label>Nombre</label>
+      <input id="login-name" type="text" placeholder="Tu nombre" autocomplete="off" oninput="loginNameInput()"/>
+    </div>
+    <div class="login-field">
+      <label>PIN</label>
+      <div class="pin-dots">
+        <span class="pin-dot" id="pd0"></span>
+        <span class="pin-dot" id="pd1"></span>
+        <span class="pin-dot" id="pd2"></span>
+        <span class="pin-dot" id="pd3"></span>
+      </div>
+    </div>
+    <div class="pin-pad">
+      <button class="pin-key" onclick="pinKey('1')">1</button>
+      <button class="pin-key" onclick="pinKey('2')">2</button>
+      <button class="pin-key" onclick="pinKey('3')">3</button>
+      <button class="pin-key" onclick="pinKey('4')">4</button>
+      <button class="pin-key" onclick="pinKey('5')">5</button>
+      <button class="pin-key" onclick="pinKey('6')">6</button>
+      <button class="pin-key" onclick="pinKey('7')">7</button>
+      <button class="pin-key" onclick="pinKey('8')">8</button>
+      <button class="pin-key" onclick="pinKey('9')">9</button>
+      <button class="pin-key" onclick="pinKey('')" style="visibility:hidden"></button>
+      <button class="pin-key" onclick="pinKey('0')">0</button>
+      <button class="pin-key del" onclick="pinDel()">⌫</button>
+    </div>
+    <div class="login-error" id="login-error"></div>
+    <button onclick="doLogin()" style="width:100%;padding:13px;border-radius:10px;background:#E8000A;border:none;color:#fff;font-weight:800;font-size:15px;font-family:inherit">Entrar →</button>
+    <div class="cocina-link">
+      <button onclick="enterKitchenDirect()">📺 Entrar como Cocina (sin login)</button>
+    </div>
+  </div>
+</div>
+
+<!-- ════ ADMIN PANEL ════ -->
+<div id="admin-ov">
+  <div class="admin-header">
+    <span style="font-size:20px">⚙️</span>
+    <div style="font-weight:900;font-size:16px">Panel Admin</div>
+    <button onclick="closeAdmin()" style="margin-left:auto;background:#2A0000;border:none;color:#F5F0E8;border-radius:8px;padding:7px 14px;font-weight:700;font-size:13px;font-family:inherit">← Salir</button>
+  </div>
+  <div class="admin-body">
+
+    <!-- USUARIOS -->
+    <div class="admin-section">
+      <div class="admin-section-title">👥 Usuarios</div>
+      <div id="admin-users-list"></div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #252525">
+        <div style="font-size:11px;color:#555;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Agregar usuario</div>
+        <div style="display:flex;flex-direction:column;gap:8px">
+          <input id="new-user-name" placeholder="Nombre" style="background:#181818;border:1px solid #2D0000;border-radius:8px;padding:9px 12px;color:#F5F0E8;font-size:13px;font-family:inherit"/>
+          <input id="new-user-pin" placeholder="PIN (4 dígitos)" type="number" maxlength="4" style="background:#181818;border:1px solid #2D0000;border-radius:8px;padding:9px 12px;color:#F5F0E8;font-size:13px;font-family:inherit"/>
+          <select id="new-user-role" style="background:#181818;border:1px solid #2D0000;border-radius:8px;padding:9px 12px;color:#F5F0E8;font-size:13px;font-family:inherit">
+            <option value="mesero">Mesero</option>
+            <option value="admin">Admin</option>
+          </select>
+          <button onclick="addUser()" style="background:#E8000A;border:none;color:#fff;border-radius:8px;padding:10px;font-weight:800;font-size:14px;font-family:inherit">➕ Agregar</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- MENU EDITOR -->
+    <div class="admin-section">
+      <div class="admin-section-title">🍽️ Editar Menú</div>
+      <div id="admin-menu-list"></div>
+      <div style="margin-top:14px;padding-top:12px;border-top:1px solid #252525">
+        <div style="font-size:11px;color:#555;font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Agregar platillo</div>
+        <div class="add-form">
+          <input id="new-item-name" placeholder="Nombre del platillo"/>
+          <input id="new-item-price" placeholder="Precio" type="number"/>
+          <input id="new-item-cat" placeholder="Categoría (ej: Aguachiles)"/>
+          <input id="new-item-emoji" placeholder="Emoji (ej: 🦐)"/>
+          <button onclick="addMenuItem()" style="background:#E8000A;border:none;color:#fff;border-radius:8px;padding:10px;font-weight:800;font-size:14px;font-family:inherit">➕ Agregar al Menú</button>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
 
 <!-- ════ KITCHEN ════ -->
 <div id="kitchen-ov">
@@ -349,10 +479,12 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
   <div id="topbar">
     <span style="font-size:22px">🦐</span>
     <div><div class="logo-name">El Señor Aguachile</div><div class="logo-sub">Restaurante de Mariscos</div></div>
+    <button id="admin-fab" onclick="openAdmin()" style="display:none;background:#1A2A3A;color:#F5F0E8;border-radius:8px;padding:8px 12px;font-weight:700;font-size:12px;margin-right:4px">⚙️ Admin</button>
     <button id="kitchen-fab" onclick="openKitchen()">
       📺 Cocina <span class="fab-dot" id="fab-dot"></span>
     </button>
     <span id="sync-dot" title="Conectando..." style="width:9px;height:9px;border-radius:50%;background:#F59E0B;display:inline-block;margin-left:6px;flex-shrink:0;transition:background .5s"></span>
+    <button onclick="doLogout()" id="logout-btn" style="display:none;background:transparent;border:1px solid #333;color:#555;border-radius:8px;padding:6px 10px;font-size:11px;font-weight:700;font-family:inherit;margin-left:4px" title="Cerrar sesión">⏻</button>
   </div>
 
   <div id="pages">
@@ -1074,6 +1206,7 @@ function confirmarCobro(){
     p.status='entregado';savePD();
     closeCobro();renderLlevar();
   }
+  venta.usuario = currentUser ? currentUser.name : 'Admin';
   S.ventas.push(venta);saveV();
 }
 
@@ -1082,7 +1215,10 @@ let cajaDate=todayISO();
 
 function renderCaja(){
   const hoy=todayISO();
-  const vd=S.ventas.filter(v=>v.date===cajaDate);
+  const allVentas = currentUser&&currentUser.role!=='admin'
+    ? S.ventas.filter(v=>v.usuario===currentUser.name)
+    : S.ventas;
+  const vd=allVentas.filter(v=>v.date===cajaDate);
   const vdMesa=vd.filter(v=>v.tipo==='mesa');
   const vdLlevar=vd.filter(v=>v.tipo==='llevar');
   const totDia=vd.reduce((s,v)=>s+v.total,0);
@@ -1101,7 +1237,7 @@ function renderCaja(){
 
   // dias
   const byDay={};
-  S.ventas.forEach(v=>{if(!byDay[v.date])byDay[v.date]={t:0,n:0};byDay[v.date].t+=v.total;byDay[v.date].n++;});
+  allVentas.forEach(v=>{if(!byDay[v.date])byDay[v.date]={t:0,n:0};byDay[v.date].t+=v.total;byDay[v.date].n++;});
   const dias=Object.entries(byDay).sort((a,b)=>b[0].localeCompare(a[0])).slice(0,60);
   const totPer=dias.reduce((s,[,d])=>s+d.t,0);
 
@@ -1109,7 +1245,7 @@ function renderCaja(){
 
   $('caja-inner').innerHTML=`
     <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:14px">
-      <div><div style="font-weight:900;font-size:18px">💰 Caja</div><div style="font-size:11px;color:#555">Guardado por 2 meses</div></div>
+      <div><div style="font-weight:900;font-size:18px">💰 Caja${currentUser&&currentUser.role!=='admin'?' — '+currentUser.name:''}</div><div style="font-size:11px;color:#555">${currentUser&&currentUser.role!=='admin'?'Tus ventas':'Todas las ventas • 2 meses'}</div></div>
       <input type="date" value="${cajaDate}" style="background:#181818;border:1px solid #2D0000;border-radius:8px;padding:7px 10px;color:#F5F0E8;font-size:12px;font-family:inherit" onchange="cajaDate=this.value;renderCaja()"/>
     </div>
 
@@ -1309,6 +1445,217 @@ function closeKitchen(){$('kitchen-ov').classList.remove('open');renderTables();
 setInterval(()=>{if($('kitchen-ov').classList.contains('open'))renderKitchen();},30000);
 setInterval(kTime,30000);
 
+
+// ══ AUTH & USERS ═══════════════════════════════════════════════════════════════
+// Usuario admin por defecto (siempre existe)
+const DEFAULT_ADMIN = {id:'admin',name:'Admin',pin:'1234',role:'admin'};
+
+let currentUser = null;
+let pinBuffer = '';
+let customMenu = null; // null = usa MENU por defecto
+
+// Usuarios guardados en localStorage (admin puede cambiarlos)
+function getUsers(){
+  const u = lg('esa_users', [DEFAULT_ADMIN]);
+  // Asegurar que siempre exista el admin
+  if(!u.find(x=>x.id==='admin')) u.unshift(DEFAULT_ADMIN);
+  return u;
+}
+function saveUsers(users){ ls('esa_users', users); }
+
+// Menú personalizable
+function getMenu(){
+  const custom = lg('esa_menu', null);
+  return custom || MENU;
+}
+function saveMenu(m){ ls('esa_menu', m); customMenu=m; }
+
+// ── LOGIN ──────────────────────────────────────────────────────────────────────
+function loginNameInput(){
+  pinBuffer=''; updatePinDots();
+  $('login-error').textContent='';
+}
+
+function pinKey(k){
+  if(pinBuffer.length>=4) return;
+  pinBuffer+=k;
+  updatePinDots();
+  if(pinBuffer.length===4) setTimeout(doLogin, 200);
+}
+
+function pinDel(){
+  pinBuffer=pinBuffer.slice(0,-1);
+  updatePinDots();
+}
+
+function updatePinDots(){
+  for(let i=0;i<4;i++){
+    const d=$('pd'+i);
+    if(d) d.className='pin-dot'+(i<pinBuffer.length?' filled':'');
+  }
+}
+
+function doLogin(){
+  const name = ($('login-name').value||'').trim().toLowerCase();
+  const pin  = pinBuffer;
+  if(!name){ $('login-error').textContent='Ingresa tu nombre'; return; }
+  if(pin.length!==4){ $('login-error').textContent='Ingresa tu PIN de 4 dígitos'; return; }
+  const users = getUsers();
+  const user  = users.find(u=>u.name.toLowerCase()===name && u.pin===pin);
+  if(!user){ 
+    $('login-error').textContent='Nombre o PIN incorrecto';
+    pinBuffer=''; updatePinDots();
+    return; 
+  }
+  enterApp(user);
+}
+
+function enterApp(user){
+  currentUser = user;
+  ls('esa_session', user);
+  $('login-screen').style.display='none';
+  $('logout-btn').style.display='block';
+  // Mostrar botón admin solo si es admin
+  if(user.role==='admin'){
+    $('admin-fab').style.display='block';
+  }
+  // Actualizar topbar con nombre
+  updateTopbarUser();
+}
+
+function updateTopbarUser(){
+  let el = $('topbar-user');
+  if(!el){
+    el = document.createElement('div');
+    el.id='topbar-user';
+    el.style.cssText='font-size:10px;color:#555;font-weight:700;line-height:1.2;max-width:60px;overflow:hidden;white-space:nowrap;text-overflow:ellipsis';
+    $('topbar').insertBefore(el, $('admin-fab'));
+  }
+  if(currentUser){
+    el.innerHTML=`<div style="color:${currentUser.role==='admin'?'#E8000A':'#F59E0B'}">${currentUser.role==='admin'?'👑':'👤'}</div>${currentUser.name}`;
+  }
+}
+
+function doLogout(){
+  if(!confirm('¿Cerrar sesión?')) return;
+  currentUser=null;
+  ls('esa_session',null);
+  pinBuffer='';
+  $('login-name').value='';
+  updatePinDots();
+  $('login-error').textContent='';
+  $('login-screen').style.display='flex';
+  $('logout-btn').style.display='none';
+  $('admin-fab').style.display='none';
+}
+
+function enterKitchenDirect(){
+  $('login-screen').style.display='none';
+  openKitchen();
+}
+
+// ── ADMIN PANEL ────────────────────────────────────────────────────────────────
+function openAdmin(){
+  if(!currentUser||currentUser.role!=='admin'){alert('Solo el admin puede acceder.');return;}
+  renderAdminUsers();
+  renderAdminMenu();
+  $('admin-ov').classList.add('open');
+}
+function closeAdmin(){ $('admin-ov').classList.remove('open'); }
+
+function renderAdminUsers(){
+  const users=getUsers();
+  $('admin-users-list').innerHTML=users.map(u=>`
+    <div class="user-row">
+      <div>
+        <div class="user-name">${u.name}</div>
+        <div style="font-size:11px;color:#555">PIN: ${u.pin}</div>
+      </div>
+      <span class="user-role ${u.role==='admin'?'admin':''}">${u.role==='admin'?'👑 Admin':'👤 Mesero'}</span>
+      ${u.id==='admin'?'<span style="font-size:11px;color:#333">Fijo</span>'
+        :`<button class="del-user" onclick="removeUser('${u.id}')">✕ Quitar</button>`}
+    </div>`).join('');
+}
+
+function addUser(){
+  const name = ($('new-user-name').value||'').trim();
+  const pin  = ($('new-user-pin').value||'').trim();
+  const role = $('new-user-role').value;
+  if(!name||pin.length!==4||isNaN(pin)){ alert('Nombre y PIN de 4 dígitos requeridos'); return; }
+  const users=getUsers();
+  if(users.find(u=>u.name.toLowerCase()===name.toLowerCase())){ alert('Ya existe un usuario con ese nombre'); return; }
+  users.push({id:'u'+Date.now(),name,pin,role});
+  saveUsers(users);
+  $('new-user-name').value='';$('new-user-pin').value='';
+  renderAdminUsers();
+}
+
+function removeUser(id){
+  if(!confirm('¿Quitar este usuario?')) return;
+  const users=getUsers().filter(u=>u.id!==id);
+  saveUsers(users);
+  renderAdminUsers();
+}
+
+function renderAdminMenu(){
+  const menu=getMenu();
+  $('admin-menu-list').innerHTML=menu.map((item,idx)=>`
+    <div class="menu-item-row">
+      <div class="menu-item-info">${item.emoji} ${item.name}<div style="font-size:10px;color:#555">${item.cat}</div></div>
+      <span class="menu-item-price">$${item.price}</span>
+      <button class="del-user" onclick="removeMenuItem(${item.id})">✕</button>
+    </div>`).join('');
+}
+
+function addMenuItem(){
+  const name  = ($('new-item-name').value||'').trim();
+  const price = parseInt($('new-item-price').value||'0');
+  const cat   = ($('new-item-cat').value||'').trim();
+  const emoji = ($('new-item-emoji').value||'🍽️').trim();
+  if(!name||!price||!cat){ alert('Completa nombre, precio y categoría'); return; }
+  const menu=getMenu();
+  const newId=Math.max(...menu.map(i=>i.id))+1;
+  menu.push({id:newId,cat,name,price,emoji});
+  saveMenu(menu);
+  $('new-item-name').value='';$('new-item-price').value='';
+  $('new-item-cat').value='';$('new-item-emoji').value='';
+  renderAdminMenu();
+  // Actualiza MENU global
+  updateLiveMenu();
+}
+
+function removeMenuItem(id){
+  if(!confirm('¿Eliminar este platillo del menú?')) return;
+  const menu=getMenu().filter(i=>i.id!==id);
+  saveMenu(menu);
+  renderAdminMenu();
+  updateLiveMenu();
+}
+
+function updateLiveMenu(){
+  // Reemplaza el menú en memoria sin recargar
+  const m=getMenu();
+  MENU.length=0;
+  m.forEach(i=>MENU.push(i));
+  // Actualiza categorías
+  CATS.length=0;
+  const newCats=["Todos",...new Set(MENU.map(i=>i.cat))];
+  newCats.forEach(c=>CATS.push(c));
+}
+
+// ── VENTAS FILTRADAS POR MESERO ────────────────────────────────────────────────
+// Override renderCaja para filtrar por usuario si es mesero
+const _origRenderCaja = null; // guardamos referencia tras boot
+
+function getVentasFiltradas(){
+  if(!currentUser||currentUser.role==='admin') return S.ventas;
+  return S.ventas.filter(v=>v.usuario===currentUser.name);
+}
+
+// Guardar usuario en cada venta
+const _origConfirmarCobro = confirmarCobro;
+
+
 // ══ BOOT ═══════════════════════════════════════════════════════════════════════
 // Reset de emergencia: si la URL tiene ?reset borra todo y recarga limpio
 if(location.search.includes('reset')){
@@ -1323,6 +1670,13 @@ if(location.search.includes('reset')){
   history.replaceState({},'',location.pathname);
 }
 if(!S.tids||!S.tids.length){S.tids=[1,2,3,4,5,6];S.ntid=7;}
+// Cargar menú personalizado si existe
+updateLiveMenu();
+// Verificar sesión guardada
+const savedSession = lg('esa_session', null);
+if(savedSession && savedSession.name){
+  enterApp(savedSession);
+}
 renderTables();
 refreshFab();
 kTime();
