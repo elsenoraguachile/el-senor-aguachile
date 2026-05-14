@@ -267,8 +267,10 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
       <div class="lgsub">Restaurante de Mariscos</div>
     </div>
     <div class="login-field">
-      <label>Nombre</label>
-      <input id="login-name" type="text" placeholder="Tu nombre" autocomplete="off" oninput="loginNameInput()"/>
+      <label>¿Quién eres?</label>
+      <select id="login-name" onchange="loginNameInput()" style="width:100%;background:#141414;border:1px solid #2D0000;border-radius:10px;padding:13px 14px;color:#F5F0E8;font-size:15px;font-family:inherit;appearance:none;-webkit-appearance:none">
+        <option value="">Selecciona tu usuario...</option>
+      </select>
     </div>
     <div class="login-field">
       <label>PIN</label>
@@ -1471,6 +1473,19 @@ function getMenu(){
 function saveMenu(m){ ls('esa_menu', m); customMenu=m; }
 
 // ── LOGIN ──────────────────────────────────────────────────────────────────────
+function populateUserSelector(){
+  const sel=$('login-name');
+  if(!sel) return;
+  const users=getUsers();
+  sel.innerHTML='<option value="">Selecciona tu usuario...</option>';
+  users.forEach(u=>{
+    const opt=document.createElement('option');
+    opt.value=u.name;
+    opt.textContent=(u.role==='admin'?'👑 ':'👤 ')+u.name;
+    sel.appendChild(opt);
+  });
+}
+
 function loginNameInput(){
   pinBuffer=''; updatePinDots();
   $('login-error').textContent='';
@@ -1496,14 +1511,14 @@ function updatePinDots(){
 }
 
 function doLogin(){
-  const name = ($('login-name').value||'').trim().toLowerCase();
+  const name = ($('login-name').value||'').trim();
   const pin  = pinBuffer;
-  if(!name){ $('login-error').textContent='Ingresa tu nombre'; return; }
+  if(!name){ $('login-error').textContent='Selecciona tu usuario'; return; }
   if(pin.length!==4){ $('login-error').textContent='Ingresa tu PIN de 4 dígitos'; return; }
   const users = getUsers();
-  const user  = users.find(u=>u.name.toLowerCase()===name && u.pin===pin);
+  const user  = users.find(u=>u.name===name && u.pin===pin);
   if(!user){ 
-    $('login-error').textContent='Nombre o PIN incorrecto';
+    $('login-error').textContent='PIN incorrecto ❌';
     pinBuffer=''; updatePinDots();
     return; 
   }
@@ -1541,7 +1556,7 @@ function doLogout(){
   currentUser=null;
   ls('esa_session',null);
   pinBuffer='';
-  $('login-name').value='';
+  populateUserSelector();
   updatePinDots();
   $('login-error').textContent='';
   $('login-screen').style.display='flex';
@@ -1588,6 +1603,7 @@ function addUser(){
   saveUsers(users);
   $('new-user-name').value='';$('new-user-pin').value='';
   renderAdminUsers();
+  populateUserSelector();
 }
 
 function removeUser(id){
@@ -1595,6 +1611,7 @@ function removeUser(id){
   const users=getUsers().filter(u=>u.id!==id);
   saveUsers(users);
   renderAdminUsers();
+  populateUserSelector();
 }
 
 function renderAdminMenu(){
@@ -1672,6 +1689,8 @@ if(location.search.includes('reset')){
 if(!S.tids||!S.tids.length){S.tids=[1,2,3,4,5,6];S.ntid=7;}
 // Cargar menú personalizado si existe
 updateLiveMenu();
+// Poblar selector de usuarios
+populateUserSelector();
 // Verificar sesión guardada
 const savedSession = lg('esa_session', null);
 if(savedSession && savedSession.name){
