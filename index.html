@@ -632,7 +632,11 @@ function renderDetail(){
 function selP(i){S.selPerson=i;renderDetail();}
 
 function renderPOrder(){
-  const d=S.tables[S.selTable];const p=d.people[S.selPerson];const pi=S.selPerson;
+  const d=S.tables[S.selTable];
+  if(!d||!d.people) return;
+  const p=d.people[S.selPerson];const pi=S.selPerson;
+  if(!p) return;
+  if(!p.items) p.items=[];
   const po=$('porder');
   if(!p.items.length){
     po.innerHTML=`<div style="text-align:center;color:#333;padding:36px 20px;font-size:14px;line-height:2">
@@ -661,7 +665,10 @@ function renderPOrder(){
 }
 
 function chgQty(pi,idx,d){
-  const p=S.tables[S.selTable].people[pi];
+  const t=S.selTable;
+  if(!S.tables[t]||!S.tables[t].people||!S.tables[t].people[pi]) return;
+  const p=S.tables[t].people[pi];
+  if(!p.items||!p.items[idx]) return;
   p.items[idx].qty+=d;
   if(p.items[idx].qty<=0) p.items.splice(idx,1);
   saveTB();renderDetail();
@@ -719,7 +726,9 @@ function confirmMenuOv(){
   const note=$('ov-note').value.trim();
   if(S.ovCtx==='mesa'){
     const t=S.selTable;const pi=S.selPerson;
-    S.ovCart.forEach(item=>S.tables[t].people[pi].items.push({...item,status:'nuevo',note}));
+    if(!S.tables[t]||!S.tables[t].people||!S.tables[t].people[pi]){closeMenuOv();return;}
+    if(!S.tables[t].people[pi].items) S.tables[t].people[pi].items=[];
+    S.ovCart.forEach(item=>S.tables[t].people[pi].items.push({...item,status:'nuevo',note,uid:Date.now()+Math.random()}));
     saveTB();closeMenuOv();renderDetail();
   } else {
     const p=S.pedidos.find(x=>x.id===S.ovLid);
