@@ -569,7 +569,7 @@ function closeAbrirOv(){$('ov-abrir').classList.remove('open');}
 function cP(d){S.abrirP=Math.max(1,Math.min(8,S.abrirP+d));$('pc-n').textContent=S.abrirP;}
 function confirmarMesa(){
   const t=S.abrirT;
-  const personas=Array.from({length:S.abrirP},(_,i)=>({name:pn(i),items:[]}));
+  const personas=Array.from({length:S.abrirP},(_,i)=>({name:pn(i),items:[],color:pc(i)}));
   S.tables[t]={persons:S.abrirP,time:nowT(),people:personas};
   // Verificar que se guardo correctamente antes de continuar
   if(!S.tables[t]||!S.tables[t].people){
@@ -610,6 +610,7 @@ function renderDetail(){
   $('d-total-top').textContent=tot>0?fmt(tot):'';
   // tabs
   $('ptabs').innerHTML=(d.people||[]).map((p,i)=>{
+    if(!p.items) p.items=[];
     const cnt=p.items.filter(x=>x.status==='nuevo').length;
     const sel=i===S.selPerson;
     return `<button onclick="selP(${i})" class="ptab ${sel?'on':'off'} ${p.items.length?'has':''}">
@@ -732,7 +733,7 @@ function confirmMenuOv(){
     saveTB();closeMenuOv();renderDetail();
   } else {
     const p=S.pedidos.find(x=>x.id===S.ovLid);
-    if(p){S.ovCart.forEach(item=>p.items.push({...item,status:'nuevo',note}));savePD();}
+    if(p){if(!p.items)p.items=[];S.ovCart.forEach(item=>p.items.push({...item,status:'nuevo',note}));savePD();}
     closeMenuOv();renderLlevar();
   }
 }
