@@ -888,15 +888,23 @@ function renderDetail(){
   $('d-since').textContent=`● Activa desde ${d.time}`;
   $('d-total-top').textContent=tot>0?fmt(tot):'';
   // tabs
-  $('ptabs').innerHTML=(d.people||[]).map((p,i)=>{
+  // Tabs de personas + botón agregar
+  const tabsHTML = (d.people||[]).map((p,i)=>{
     if(!p.items) p.items=[];
     const cnt=p.items.filter(x=>x.status==='nuevo').length;
     const sel=i===S.selPerson;
-    return `<button onclick="selP(${i})" class="ptab ${sel?'on':'off'} ${p.items.length?'has':''}">
-      <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${pc(i)};margin-right:5px"></span>${p.name}
-      ${cnt>0?`<span style="background:#F59E0B;color:#000;border-radius:8px;padding:0 5px;font-size:10px;font-weight:800;margin-left:3px">${cnt}</span>`:''}
-    </button>`;
+    // Solo puede quitarse si no tiene items en cocina
+    const hasKitchen=p.items.some(x=>x.status==='pendiente'||x.status==='listo');
+    return `<div style="position:relative;display:inline-flex;align-items:center;flex-shrink:0">
+      <button onclick="selP(${i})" class="ptab ${sel?'on':'off'} ${p.items.length?'has':''}">
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${pc(i)};margin-right:5px"></span>${p.name}
+        ${cnt>0?`<span style="background:#F59E0B;color:#000;border-radius:8px;padding:0 5px;font-size:10px;font-weight:800;margin-left:3px">${cnt}</span>`:''}
+      </button>
+      ${!hasKitchen?`<button onclick="removePerson(${i})" style="background:#2A0000;border:1px solid #5A0000;color:#FF8080;border-radius:50%;width:18px;height:18px;font-size:11px;font-weight:900;display:flex;align-items:center;justify-content:center;margin-left:2px;flex-shrink:0;font-family:inherit">✕</button>`:''}
+    </div>`;
   }).join('');
+  $('ptabs').innerHTML = tabsHTML +
+    `<button onclick="addPerson()" style="padding:7px 12px;border-radius:20px;background:#1A2A1A;border:1px solid #22C55E;color:#22C55E;font-weight:700;font-size:12px;white-space:nowrap;flex-shrink:0;font-family:inherit">➕</button>`;
   renderPOrder();
   // footer
   $('res-persons').innerHTML=(d.people||[]).map((p,i)=>{
@@ -910,6 +918,40 @@ function renderDetail(){
 }
 
 function selP(i){S.selPerson=i;renderDetail();}
+
+function addPerson(){
+  const t=S.selTable; const d=S.tables[t];
+  if(!d) return;
+  const i=d.people.length;
+  d.people.push({name:pn(i),items:[]});
+  saveTB();
+  S.selPerson=i;
+  renderDetail();
+}
+
+function removePerson(i){
+  const t=S.selTable; const d=S.tables[t];
+  if(!d||!d.people) return;
+  const p=d.people[i];
+  // No quitar si tiene pedidos en cocina
+  if(p.items.some(x=>x.status==='pendiente'||x.status==='listo')){
+    alert('Este cliente tiene pedidos en cocina, no se puede quitar.');
+    return;
+  }
+  if(d.people.length<=1){
+    alert('Debe haber al menos 1 cliente en la mesa.');
+    return;
+  }
+  if(p.items.length>0){
+    if(!confirm(`¿Quitar a ${p.name}? Tiene platillos sin enviar que se perderán.`)) return;
+  }
+  d.people.splice(i,1);
+  // Renombrar los que siguen
+  d.people.forEach((p,idx)=>{ if(p.name===pn(idx+1)||p.name.startsWith('Cliente ')) p.name=pn(idx); });
+  S.selPerson=Math.min(S.selPerson, d.people.length-1);
+  saveTB();
+  renderDetail();
+}
 
 function renderPOrder(){
   const d=S.tables[S.selTable];
