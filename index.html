@@ -351,6 +351,10 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
 
 <!-- ════ KITCHEN ════ -->
 <div id="kitchen-ov">
+  <div style="background:#0A2A0A;border:1px solid #22C55E;border-radius:8px;padding:8px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;font-size:12px">
+    <span>🔔 Notificación de sonido</span>
+    <button id="sound-btn" onclick="activarSonido()" style="background:#14532D;border:1px solid #22C55E;color:#fff;border-radius:6px;padding:5px 12px;font-weight:700;font-size:12px;font-family:inherit">Activar</button>
+  </div>
   <div class="kvh">
     <span style="font-size:20px">🦐</span>
     <div><div style="font-weight:900;font-size:13px;text-transform:uppercase">El Señor Aguachile</div><div style="font-size:9px;color:#CC0000;font-weight:700;letter-spacing:1px">COCINA</div></div>
@@ -667,7 +671,8 @@ function initSync(){
         db=firebase.database();
         setSyncDot(true);
         // Escucha tables
-        db.ref('tables').on('value',snap=>{
+        // Revisa sonido cada vez que Firebase sincroniza
+    db.ref('tables').on('value',snap=>{
           const v=snap.val();
           if(!v||typeof v!=='object') return;
           // Valida y limpia datos antes de aplicar
@@ -1014,6 +1019,7 @@ function enviarCocina(){
   const t=S.selTable;const d=S.tables[t];const ts=Date.now();
   (d.people||[]).forEach(p=>(p&&p.items||[]).forEach(i=>{if(i&&i.status==='nuevo'){i.status='pendiente';i.ts=ts;}}));
   saveTB();renderDetail();refreshFab();
+  checkNewKitchenOrders();
   const b=$('btn-k');b.textContent='✓ Enviado!';b.style.background='#22C55E';
   setTimeout(()=>{b.textContent='🍳 Enviar a Cocina';b.style.background='#E8000A';},1800);
 }
@@ -1110,6 +1116,7 @@ function enviarLlevarCocina(id){
   const ts=Date.now();
   p.items.forEach(i=>{if(i.status==='nuevo'){i.status='pendiente';i.ts=ts;}});
   p.status='cocina';savePD();renderLlevar();refreshFab();
+  checkNewKitchenOrders();
 }
 function marcarListo(id){
   const p=S.pedidos.find(x=>x.id===id);if(!p)return;
@@ -1175,28 +1182,112 @@ function sendWA(){
 }
 
 function doPrint(){
-  let rows='',tot=0,titulo='',sub='';
-  if(S.cobroCtx==='mesa'){
-    const t=S.selTable;const d=S.tables[t];
-    tot=tTotal(t);titulo=`Mesa ${t}`;sub=`${d.people.length} personas`;
+  const folio = 'F'+Date.now().toString().slice(-6);
+  let rows='', tot=0, titulo='', sub='', esMesa=S.cobroCtx==='mesa';
+
+  if(esMesa){
+    const t=S.selTable; const d=S.tables[t];
+    tot=tTotal(t); titulo=`Mesa ${t}`; sub=`${d.people.length} persona${d.people.length!==1?'s':''}`;
     d.people.forEach((p,i)=>{
-      const s=p.items.reduce((ss,x)=>ss+x.price*x.qty,0);if(!s)return;
-      rows+=`<div style="font-weight:900;font-size:11px;margin:8px 0 3px">${p.name}</div>`;
-      p.items.forEach(item=>{rows+=`<div class="r"><span>${item.qty}x ${item.name}</span><span>$${(item.price*item.qty).toFixed(2)}</span></div>`;});
+      const psub=p.items.reduce((s,x)=>s+x.price*x.qty,0);
+      if(!psub) return;
+      rows+=`<tr><td colspan="3" style="padding:6px 0 2px;font-weight:900;font-size:11px;text-transform:uppercase;border-top:1px dashed #ccc;color:#333">${p.name}</td></tr>`;
+      p.items.forEach(item=>{
+        rows+=`<tr>
+          <td style="padding:2px 0;font-size:12px">${item.qty}x ${item.name}${item.note?`<br/><span style="font-size:10px;color:#888">📝 ${item.note}</span>`:''}</td>
+          <td style="text-align:right;font-size:11px;color:#555">$${item.price}</td>
+          <td style="text-align:right;font-size:12px;font-weight:700">$${(item.price*item.qty).toFixed(2)}</td>
+        </tr>`;
+      });
     });
   } else {
     const p=S.pedidos.find(x=>x.id===S.cobroLid);
-    tot=lTotal(p);titulo=`${p.tipo==='domicilio'?'🛵':'🏪'} ${p.nombre}`;
-    sub=p.tipo==='domicilio'?`Domicilio${p.dir?' — '+p.dir:''}`:' Mostrador';
-    p.items.forEach(item=>{rows+=`<div class="r"><span>${item.qty}x ${item.emoji} ${item.name}</span><span>$${(item.price*item.qty).toFixed(2)}</span></div>`;});
+    tot=lTotal(p);
+    titulo=`${p.tipo==='domicilio'?'🛵 Domicilio':'🏪 Mostrador'} — ${p.nombre}`;
+    sub=p.tel?`Tel: ${p.tel}`:'';
+    p.items.forEach(item=>{
+      rows+=`<tr>
+        <td style="padding:2px 0;font-size:12px">${item.qty}x ${item.emoji} ${item.name}${item.note?`<br/><span style="font-size:10px;color:#888">📝 ${item.note}</span>`:''}</td>
+        <td style="text-align:right;font-size:11px;color:#555">$${item.price}</td>
+        <td style="text-align:right;font-size:12px;font-weight:700">$${(item.price*item.qty).toFixed(2)}</td>
+      </tr>`;
+    });
+    if(p.dir) rows+=`<tr><td colspan="3" style="font-size:10px;color:#555;padding-top:4px">📍 ${p.dir}</td></tr>`;
   }
-  const w=window.open('','_blank','width=320,height=750');
-  w.document.write(`<!DOCTYPE html><html><head><title>Ticket</title><style>*{margin:0;padding:0}body{font-family:'Courier New',monospace;font-size:12px;width:280px;margin:auto;padding:10px 6px}.c{text-align:center}.r{display:flex;justify-content:space-between;margin:2px 0}hr{border:none;border-top:1px dashed #000;margin:6px 0}.b{font-weight:900}</style></head><body>
-  <div class="c"><div style="font-size:22px">🦐</div><div class="b" style="font-size:14px;text-transform:uppercase">El Señor Aguachile</div><div style="font-size:10px">Restaurante de Mariscos</div><div style="font-size:10px">Calle 2 de Abril, Col. Palito Verde • Tel: 285 104 7759</div></div>
-  <hr/><div class="r"><span>${titulo}</span><span>${dateS()} ${nowT()}</span></div>${sub?`<div style="font-size:10px;color:#555">${sub}</div>`:''}<hr/>
-  ${rows}<hr/><div class="r b" style="font-size:15px"><span>TOTAL</span><span>$${tot.toFixed(2)}</span></div><div class="r"><span>Pago</span><span>${S.payMethod}</span></div><hr/>
-  <div class="c" style="margin-top:8px;font-size:10px;line-height:1.8">¡Gracias por su preferencia! 🌊<br/>¡SABOR QUE ENAMORA!<br/>— El Señor Aguachile —</div></body></html>`);
-  w.document.close();w.print();
+
+  const cajero = currentUser ? currentUser.name : '';
+  const w=window.open('','_blank','width=340,height=800');
+  w.document.write(`<!DOCTYPE html><html><head><title>Ticket ${folio}</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Outfit:wght@400;700;900&display=swap');
+    *{margin:0;padding:0;box-sizing:border-box}
+    body{font-family:'Outfit','Courier New',monospace;width:300px;margin:auto;padding:12px 8px;background:#fff;color:#111}
+    .center{text-align:center}
+    .logo{font-size:48px;margin-bottom:4px}
+    .rest-name{font-weight:900;font-size:18px;text-transform:uppercase;letter-spacing:1px;line-height:1.1}
+    .rest-sub{font-size:10px;color:#CC0000;font-weight:700;letter-spacing:2px;text-transform:uppercase;margin-bottom:2px}
+    .rest-addr{font-size:10px;color:#666;margin-bottom:2px}
+    .rest-tel{font-size:10px;color:#666}
+    .divider{border:none;border-top:2px dashed #ccc;margin:8px 0}
+    .divider-solid{border:none;border-top:2px solid #000;margin:8px 0}
+    .info-row{display:flex;justify-content:space-between;font-size:11px;color:#555;margin:2px 0}
+    table{width:100%;border-collapse:collapse}
+    .col-header{font-size:9px;color:#888;font-weight:700;text-transform:uppercase;padding:4px 0;border-bottom:1px solid #ddd}
+    .total-row td{font-weight:900;font-size:16px;padding:8px 0;border-top:2px solid #000}
+    .footer{text-align:center;font-size:10px;color:#666;line-height:1.8;margin-top:8px}
+    .folio{font-size:10px;color:#888}
+    .thank{font-weight:900;font-size:13px;color:#CC0000;text-transform:uppercase;letter-spacing:1px}
+    @media print{body{width:100%}}
+  </style></head><body>
+
+  <div class="center">
+    <div class="logo">🦐</div>
+    <div class="rest-name">El Señor Aguachile</div>
+    <div class="rest-sub">Restaurante de Mariscos</div>
+    <div class="rest-addr">Calle 2 de Abril, Col. Palito Verde</div>
+    <div class="rest-tel">Tel: 285 104 7759</div>
+  </div>
+
+  <hr class="divider-solid"/>
+
+  <div class="info-row"><span style="font-weight:700">${titulo}</span><span class="folio">${folio}</span></div>
+  ${sub?`<div class="info-row"><span>${sub}</span></div>`:''}
+  <div class="info-row"><span>${dateS()} ${nowT()}</span>${cajero?`<span>👤 ${cajero}</span>`:''}</div>
+
+  <hr class="divider"/>
+
+  <table>
+    <thead>
+      <tr>
+        <th class="col-header" style="text-align:left">Platillo</th>
+        <th class="col-header" style="text-align:right">P.U.</th>
+        <th class="col-header" style="text-align:right">Total</th>
+      </tr>
+    </thead>
+    <tbody>${rows}</tbody>
+    <tfoot>
+      <tr class="total-row">
+        <td colspan="2">TOTAL</td>
+        <td style="text-align:right">$${tot.toFixed(2)}</td>
+      </tr>
+      <tr>
+        <td colspan="2" style="font-size:12px;padding:4px 0;color:#555">Método de pago</td>
+        <td style="text-align:right;font-size:12px;font-weight:700">${S.payMethod}</td>
+      </tr>
+    </tfoot>
+  </table>
+
+  <hr class="divider"/>
+
+  <div class="footer">
+    <div class="thank">¡Gracias por su preferencia!</div>
+    <div>¡SABOR QUE ENAMORA! 🌊</div>
+    <div style="margin-top:4px;font-size:9px;color:#aaa">— El Señor Aguachile —</div>
+  </div>
+
+  <script>window.onload=()=>window.print();<\/script>
+  </body></html>`);
+  w.document.close();
 }
 
 function confirmarCobro(){
@@ -1344,6 +1435,48 @@ function refreshFab(){
 
 function kTime(){const e=$('kv-time');if(e)e.textContent=new Date().toLocaleTimeString('es-MX',{hour:'2-digit',minute:'2-digit'});}
 
+// ── Sonido de notificación para cocina ──────────────────────────────────────
+let lastPendingCount = 0;
+
+function activarSonido(){
+  // Necesita interacción del usuario para desbloquear AudioContext
+  playKitchenSound();
+  const btn=$('sound-btn');
+  if(btn){btn.textContent='✓ Activo';btn.style.background='#166534';btn.disabled=true;}
+  lastPendingCount=pendAll(); // resetea contador para no sonar con pedidos ya existentes
+}
+
+function playKitchenSound(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    // Secuencia de 3 tonos: ping ping ping
+    [0, 0.18, 0.36].forEach((delay, i) => {
+      const osc = ctx.createOscillator();
+      const gain = ctx.createGain();
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+      osc.frequency.value = i===0?880:i===1?1047:1319; // La, Do, Mi
+      osc.type = 'sine';
+      gain.gain.setValueAtTime(0, ctx.currentTime+delay);
+      gain.gain.linearRampToValueAtTime(0.4, ctx.currentTime+delay+0.02);
+      gain.gain.linearRampToValueAtTime(0, ctx.currentTime+delay+0.18);
+      osc.start(ctx.currentTime+delay);
+      osc.stop(ctx.currentTime+delay+0.2);
+    });
+  }catch(e){}
+}
+
+function checkNewKitchenOrders(){
+  const current = pendAll();
+  if(current > lastPendingCount){
+    // Hay pedidos nuevos — sonar si cocina está abierta
+    if(document.getElementById('kitchen-ov').classList.contains('open')){
+      playKitchenSound();
+    }
+  }
+  lastPendingCount = current;
+}
+
 function renderKitchen(){
   kTime();
   // Mesas pendientes
@@ -1451,6 +1584,7 @@ function openKitchen(){$('kitchen-ov').classList.add('open');renderKitchen();}
 function closeKitchen(){$('kitchen-ov').classList.remove('open');renderTables();}
 
 setInterval(()=>{if($('kitchen-ov').classList.contains('open'))renderKitchen();},30000);
+setInterval(checkNewKitchenOrders, 5000); // Revisa sonido cada 5 segundos
 setInterval(kTime,30000);
 
 
