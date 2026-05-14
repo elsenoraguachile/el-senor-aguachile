@@ -495,15 +495,19 @@ function saveV(){
 }
 function saveTB(){
   ls('esa_ti',S.tids);ls('esa_nt',S.ntid);ls('esa_tb',S.tables);
-  if(fbReady){
+  if(!fbReady) return;
+  // Solo guarda si hay datos validos
+  if(Array.isArray(S.tids)&&S.tids.length>0){
     db.ref('tids').set(S.tids).catch(()=>{});
     db.ref('ntid').set(S.ntid).catch(()=>{});
-    db.ref('tables').set(S.tables||{}).catch(()=>{});
+  }
+  if(S.tables&&typeof S.tables==='object'){
+    db.ref('tables').set(S.tables).catch(()=>{});
   }
 }
 function savePD(){
   ls('esa_pd',S.pedidos);
-  if(fbReady) db.ref('pedidos').set(S.pedidos).catch(()=>{});
+  if(fbReady&&Array.isArray(S.pedidos)) db.ref('pedidos').set(S.pedidos).catch(()=>{});
 }
 function setDot(ok){
   const d=document.getElementById('sync-dot');
@@ -561,8 +565,14 @@ async function connectFirebase(){
     });
     db.ref('tables').on('value',snap=>{
       const v=snap.val();
-      if(v===null) return; // ignorar borrados accidentales
-      const nuevo=typeof v==='object'?v:{};
+      if(v===null||v===undefined) return; // ignorar nulos
+      if(typeof v!=='object') return;
+      // Validar que cada mesa tenga people array valido
+      const nuevo={};
+      Object.entries(v).forEach(([k,t])=>{
+        if(t&&Array.isArray(t.people)&&t.people.length>0) nuevo[k]=t;
+        else if(t&&!t.people) nuevo[k]={...t,people:[]}; // reparar mesa sin people
+      });
       if(JSON.stringify(nuevo)!==JSON.stringify(S.tables)){
         S.tables=nuevo;ls('esa_tb',S.tables);
         renderTables();
@@ -657,7 +667,7 @@ function toggleEdit(){
   $('btn-edit').style.background=S.editMode?'#14532D':'#1A1A1A';
   $('btn-edit').style.borderColor=S.editMode?'#22C55E':'#333';
   $('mesas-lbl').textContent=S.editMode?'Toca ✕ para eliminar':'Toca una mesa para abrirla';
-  renderTables();
+  renderTables(); // NO saveTB aqui - solo re-dibuja
 }
 
 function addTable(){S.tids.push(S.ntid++);saveTB();renderTables();}
@@ -673,7 +683,12 @@ function closeAbrirOv(){$('ov-abrir').classList.remove('open');}
 function cP(d){S.abrirP=Math.max(1,Math.min(8,S.abrirP+d));$('pc-n').textContent=S.abrirP;}
 function confirmarMesa(){
   const t=S.abrirT;
-  S.tables[t]={persons:S.abrirP,time:nowT(),people:Array.from({length:S.abrirP},(_,i)=>({name:pn(i),items:[]}))};
+  const personas=Array.from({length:S.abrirP},(_,i)=>({name:pn(i),items:[]}));
+  S.tables[t]={persons:S.abrirP,time:nowT(),people:personas};
+  // Verificar que se guardo correctamente antes de continuar
+  if(!S.tables[t]||!S.tables[t].people){
+    alert('Error al crear la mesa, intenta de nuevo');return;
+  }
   saveTB();closeAbrirOv();renderTables();openDetail(t);
 }
 
