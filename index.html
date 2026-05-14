@@ -467,7 +467,7 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
     <div style="margin-bottom:10px">
       <div class="lbl">Ticket por WhatsApp</div>
       <div class="wa-row">
-        <input id="wa-num" class="wa-in" placeholder="Número con lada (ej: 5212345678)" type="tel"/>
+        <input id="wa-num" class="wa-in" placeholder="10 dígitos (ej: 2851047759)" type="tel" maxlength="10"/>
         <button class="wa-go" id="wa-go" onclick="sendWA()">📲</button>
       </div>
       <div id="wa-ok" style="font-size:12px;color:#22C55E;margin-top:5px;font-weight:600;display:none">✓ Ticket enviado por WhatsApp</div>
@@ -716,6 +716,15 @@ function initSync(){
         db.ref('ventas').on('value',snap=>{
           const v=snap.val();
           if(Array.isArray(v)&&v.length>0) {S.ventas=v;ls('esa_v3',S.ventas);}
+        });
+        // Usuarios sincronizados entre dispositivos
+        db.ref('users').on('value',snap=>{
+          const v=snap.val();
+          if(Array.isArray(v)&&v.length>0){
+            if(!v.find(x=>x.id==='admin')) v.unshift(DEFAULT_ADMIN);
+            ls('esa_users',v);
+            populateUserSelector();
+          }
         });
       }catch(e){setSyncDot(false);}
     };
@@ -1158,8 +1167,10 @@ function closeCobro(){$('cobro-ov').classList.remove('open');}
 function setPay(el,m){S.payMethod=m;document.querySelectorAll('.pay-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');}
 
 function sendWA(){
-  const phone=$('wa-num').value.replace(/\D/g,'');
+  let phone=$('wa-num').value.replace(/\D/g,'');
   if(!phone){alert('Ingresa el número de WhatsApp');return;}
+  // Auto-agregar lada 52 (México) si no la tiene
+  if(!phone.startsWith('52')) phone='52'+phone;
   let lines='',tot=0,titulo='',tipo='mesa';
   if(S.cobroCtx==='mesa'){
     const t=S.selTable;const d=S.tables[t];
@@ -1599,11 +1610,14 @@ let customMenu = null; // null = usa MENU por defecto
 // Usuarios guardados en localStorage (admin puede cambiarlos)
 function getUsers(){
   const u = lg('esa_users', [DEFAULT_ADMIN]);
-  // Asegurar que siempre exista el admin
   if(!u.find(x=>x.id==='admin')) u.unshift(DEFAULT_ADMIN);
   return u;
 }
-function saveUsers(users){ ls('esa_users', users); }
+function saveUsers(users){
+  ls('esa_users', users);
+  // Guardar en Firebase para sincronizar entre dispositivos
+  if(db) db.ref('users').set(users).catch(()=>{});
+}
 
 // Menú personalizable
 function getMenu(){
@@ -1829,6 +1843,8 @@ if(!S.tids||!S.tids.length){S.tids=[1,2,3,4,5,6];S.ntid=7;}
 updateLiveMenu();
 // Poblar selector de usuarios
 populateUserSelector();
+// Si hay usuarios locales y Firebase está listo, sincronizar
+if(db){ const u=getUsers(); if(u.length>1) db.ref('users').set(u).catch(()=>{}); }
 // Verificar sesión guardada
 const savedSession = lg('esa_session', null);
 if(savedSession && savedSession.name){
