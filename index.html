@@ -431,33 +431,26 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
 <script>
 // ══ MENU DATA ══════════════════════════════════════════════════════════════════
 const MENU=[
-  {id:1,cat:"Aguachiles",name:"Aguachile Verde Chico",price:120,emoji:"🍤"},
-  {id:2,cat:"Aguachiles",name:"Aguachile Verde Grande",price:250,emoji:"🍤"},
-  {id:3,cat:"Aguachiles",name:"Tosti Aguachile",price:290,emoji:"🍤"},
-  {id:4,cat:"Camarones",name:"Cam. Enchilpayados",price:190,emoji:"🦐"},
-  {id:5,cat:"Camarones",name:"Cam. Empanizados",price:190,emoji:"🦐"},
-  {id:6,cat:"Camarones",name:"Cam. Enchipotlados",price:190,emoji:"🦐"},
-  {id:7,cat:"Camarones",name:"Cam. al Mojo de Ajo",price:150,emoji:"🦐"},
-  {id:8,cat:"Mojarras",name:"Mojarra Enchilpayada",price:150,emoji:"🐟"},
-  {id:9,cat:"Mojarras",name:"Mojarra enchipotlada ",price:150,emoji:"🐟"},
-  {id:10,cat:"Mojarras",name:"Mojarra Mojo de ajo",price:150,emoji:"🐟"},
-  {id:11,cat:"Ensaladas",name:"Ensalada Camarón Chica",price:130,emoji:"🥗"},
-  {id:12,cat:"Ensaladas",name:"Ensalada Camarón Grande",price:1250,emoji:"🥗"},
-  {id:13,cat:"Caldos",name:"Caldo de Marisco",price:120,emoji:"🍵"},
-  {id:14,cat:"Bebidas",name:"Michelada",price:100,emoji:"🍺"},
-  {id:15,cat:"Bebidas",name:"Azulito",price:100,emoji:"🍺"},
-  {id:16,cat:"Bebidas",name:"Piña Colada",price:100,emoji:"🍺"},
-  {id:17,cat:"Bebidas",name:"Micheloka",price:170,emoji:"🍺"},
-  {id:18,cat:"Bebidas",name:"Miche Camarón",price:150,emoji:"🍺"},
-  {id:19,cat:"Bebidas",name:"Coca Cola 500ml",price:30,emoji:"🥤"},
-  {id:20,cat:"Bebidas",name:"Agua Natural",price:25,emoji:"🥤"},
-  {id:21,cat:"Bebidas",name:"Jarra de Agua",price:60,emoji:"🥤"},
-  {id:22,cat:"Bebidas",name:"Cerveza Corona",price:30,emoji:"🍺"},
-  {id:23,cat:"Bebidas",name:"Cerveza Victoria",price:30,emoji:"🍺"},
-  {id:24,cat:"Postres",name:"Pay de Queso",price:50,emoji:"🍚"},
-  {id:25,cat:"Postres",name:"Pay de Piña",price:50,emoji:"🍚"},
-  {id:26,cat:"Postres",name:"Cochoflan",price:50,emoji:"🍚"},
-  {id:27,cat:"Postres",name:"Carlota",price:50,emoji:"🍚"},
+  {id:1,cat:"Aguachiles",name:"Aguachile Verde",price:120,emoji:"🌿"},
+  {id:2,cat:"Aguachiles",name:"Aguachile Rojo",price:120,emoji:"🌶️"},
+  {id:3,cat:"Aguachiles",name:"Aguachile Negro",price:130,emoji:"🖤"},
+  {id:4,cat:"Aguachiles",name:"Aguachile Mixto",price:140,emoji:"🦐"},
+  {id:5,cat:"Camarones",name:"Cam. Enchilpayados",price:130,emoji:"🔥"},
+  {id:6,cat:"Camarones",name:"Cam. Empanizados",price:130,emoji:"🍤"},
+  {id:7,cat:"Camarones",name:"Cam. Enchipotlados",price:135,emoji:"🍲"},
+  {id:8,cat:"Camarones",name:"Cam. al Mojo de Ajo",price:130,emoji:"🧄"},
+  {id:9,cat:"Platillos",name:"Mojarra Preparada",price:150,emoji:"🐟"},
+  {id:10,cat:"Platillos",name:"Ensalada de Camarón",price:115,emoji:"🥗"},
+  {id:11,cat:"Platillos",name:"Ceviche Fresco",price:110,emoji:"🍋"},
+  {id:12,cat:"Platillos",name:"Caldo de Mariscos",price:160,emoji:"🍵"},
+  {id:13,cat:"Bebidas",name:"Michelada",price:60,emoji:"🍺"},
+  {id:14,cat:"Bebidas",name:"Azulito",price:55,emoji:"🔵"},
+  {id:15,cat:"Bebidas",name:"Piña Colada",price:65,emoji:"🍹"},
+  {id:16,cat:"Bebidas",name:"Agua Fresca",price:25,emoji:"🥤"},
+  {id:17,cat:"Bebidas",name:"Refresco",price:25,emoji:"🥤"},
+  {id:18,cat:"Extras",name:"Tostadas (5)",price:20,emoji:"🫓"},
+  {id:19,cat:"Extras",name:"Arroz",price:30,emoji:"🍚"},
+  {id:20,cat:"Extras",name:"Limones",price:15,emoji:"🍋"},
 ];
 const CATS=["Todos",...new Set(MENU.map(i=>i.cat))];
 const PC=["#E8000A","#3B82F6","#22C55E","#F59E0B","#A855F7","#06B6D4","#EC4899","#84CC16"];
@@ -532,32 +525,44 @@ let S={
 if(S.pedidos.length) S.npid=Math.max(...S.pedidos.map(p=>p.id))+1;
 
 async function connectFirebase(){
+  // Firebase se conecta en segundo plano — la app ya cargo con localStorage
   const ok=await loadFirebase();
   if(!ok){setDot(false);return;}
   try{
     const snap=await db.ref('/').once('value');
     const d=snap.val();
+    // Solo sincroniza si Firebase tiene datos validos
     if(d){
-      if(Array.isArray(d.tids)){S.tids=d.tids;ls('esa_ti',S.tids);}
-      if(typeof d.ntid==='number'){S.ntid=d.ntid;ls('esa_nt',S.ntid);}
-      if(d.tables&&typeof d.tables==='object'){S.tables=d.tables;ls('esa_tb',S.tables);}
-      if(Array.isArray(d.pedidos)){S.pedidos=d.pedidos;ls('esa_pd',S.pedidos);
-        if(S.pedidos.length) S.npid=Math.max(...S.pedidos.map(p=>p.id))+1;}
-      if(Array.isArray(d.ventas)){S.ventas=d.ventas;ls('esa_v3',S.ventas);}
+      if(Array.isArray(d.tids)&&d.tids.length>0){S.tids=d.tids;ls('esa_ti',S.tids);}
+      if(typeof d.ntid==='number'&&d.ntid>0){S.ntid=d.ntid;ls('esa_nt',S.ntid);}
+      if(d.tables&&typeof d.tables==='object'&&Object.keys(d.tables).length>0){
+        S.tables=d.tables;ls('esa_tb',S.tables);}
+      if(Array.isArray(d.pedidos)&&d.pedidos.length>0){
+        S.pedidos=d.pedidos;ls('esa_pd',S.pedidos);
+        S.npid=Math.max(...S.pedidos.map(p=>p.id))+1;}
+      if(Array.isArray(d.ventas)&&d.ventas.length>0){
+        S.ventas=d.ventas;ls('esa_v3',S.ventas);}
+      renderTables(); renderLlevar(); refreshFab();
+    } else {
+      // Firebase vacio — guarda los defaults para sincronizar
+      saveTB(); savePD(); saveV();
     }
-    // Si Firebase no tiene mesas guardadas aun, inicializa con las default
-    if(!S.tids||!S.tids.length){ S.tids=[1,2,3,4,5,6]; S.ntid=7; }
-    renderTables(); renderLlevar(); refreshFab(); setDot(true);
+    setDot(true);
+
+    // Escucha cambios en tiempo real
     db.ref('tids').on('value',snap=>{
       const v=snap.val();
-      if(Array.isArray(v)&&v.length>0){S.tids=v;ls('esa_ti',S.tids);renderTables();}
+      if(Array.isArray(v)&&v.length>0&&JSON.stringify(v)!==JSON.stringify(S.tids)){
+        S.tids=v;ls('esa_ti',S.tids);renderTables();
+      }
     });
     db.ref('ntid').on('value',snap=>{
-      if(typeof snap.val()==='number') S.ntid=snap.val();
+      if(typeof snap.val()==='number'&&snap.val()>0) S.ntid=snap.val();
     });
     db.ref('tables').on('value',snap=>{
       const v=snap.val();
-      const nuevo=v&&typeof v==='object'?v:{};
+      if(v===null) return; // ignorar borrados accidentales
+      const nuevo=typeof v==='object'?v:{};
       if(JSON.stringify(nuevo)!==JSON.stringify(S.tables)){
         S.tables=nuevo;ls('esa_tb',S.tables);
         renderTables();
@@ -568,6 +573,7 @@ async function connectFirebase(){
     });
     db.ref('pedidos').on('value',snap=>{
       const v=snap.val();
+      if(v===null) return;
       const nuevo=Array.isArray(v)?v:[];
       if(JSON.stringify(nuevo)!==JSON.stringify(S.pedidos)){
         S.pedidos=nuevo;ls('esa_pd',S.pedidos);
@@ -579,7 +585,7 @@ async function connectFirebase(){
     });
     db.ref('ventas').on('value',snap=>{
       const v=snap.val();
-      if(Array.isArray(v)){S.ventas=v;ls('esa_v3',S.ventas);}
+      if(Array.isArray(v)&&v.length>0){S.ventas=v;ls('esa_v3',S.ventas);}
     });
   }catch(e){setDot(false);}
 }
@@ -1262,6 +1268,12 @@ setInterval(()=>{if($('kitchen-ov').classList.contains('open'))renderKitchen();}
 setInterval(kTime,30000);
 
 // ══ BOOT ═══════════════════════════════════════════════════════════════════════
+// Reset de emergencia: si la URL tiene ?reset borra todo y recarga limpio
+if(location.search.includes('reset')){
+  ['esa_v3','esa_ti','esa_nt','esa_tb','esa_pd'].forEach(k=>localStorage.removeItem(k));
+  S.tids=[1,2,3,4,5,6]; S.ntid=7; S.tables={}; S.pedidos=[]; S.ventas=[];
+  history.replaceState({},'',location.pathname);
+}
 renderTables();
 refreshFab();
 kTime();
