@@ -352,6 +352,7 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
     <button id="kitchen-fab" onclick="openKitchen()">
       📺 Cocina <span class="fab-dot" id="fab-dot"></span>
     </button>
+    <span id="sync-dot" title="Conectando..." style="width:9px;height:9px;border-radius:50%;background:#F59E0B;display:inline-block;margin-left:6px;flex-shrink:0;transition:background .5s"></span>
   </div>
 
   <div id="pages">
@@ -455,13 +456,136 @@ const CATS=["Todos",...new Set(MENU.map(i=>i.cat))];
 const PC=["#E8000A","#3B82F6","#22C55E","#F59E0B","#A855F7","#06B6D4","#EC4899","#84CC16"];
 
 // ══ STORAGE ════════════════════════════════════════════════════════════════════
-// ══ STORAGE (localStorage — guarda 2 meses) ═══════════════════════════════
+// ══ STORAGE ════════════════════════════════════════════════════════════════════
 const TWO_MO=60*24*60*60*1000;
 const lg=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}};
 const ls=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
-const saveV=()=>{S.ventas=S.ventas.filter(v=>v.ts>Date.now()-TWO_MO);ls('esa_v3',S.ventas);};
-const saveTB=()=>{ls('esa_ti',S.tids);ls('esa_nt',S.ntid);ls('esa_tb',S.tables);};
-const savePD=()=>{ls('esa_pd',S.pedidos);};
+
+// ── Firebase (sincronización en tiempo real) ──────────────────────────────────
+const FB_CFG={
+  apiKey:"AIzaSyBdcEL71vTHNMaDutlSdaSHZXeSl1FIkPg",
+  authDomain:"el-senor-aguachile.firebaseapp.com",
+  databaseURL:"https://el-senor-aguachile-default-rtdb.firebaseio.com",
+  projectId:"el-senor-aguachile",
+  storageBucket:"el-senor-aguachile.firebasestorage.app",
+  messagingSenderId:"58897809601",
+  appId:"1:58897809601:web:1c58f41b4f554a0c7b1440"
+};
+let db=null;
+
+// Guarda localStorage siempre (rápido) y Firebase en segundo plano (sync)
+const saveV=()=>{
+  S.ventas=S.ventas.filter(v=>v.ts>Date.now()-TWO_MO);
+  ls('esa_v3',S.ventas);
+  if(db) db.ref('ventas').set(S.ventas).catch(()=>{});
+};
+const saveTB=()=>{
+  ls('esa_ti',S.tids);ls('esa_nt',S.ntid);ls('esa_tb',S.tables);
+  if(!db) return;
+  // Solo manda datos válidos a Firebase
+  const tablesClean={};
+  Object.entries(S.tables).forEach(([k,t])=>{
+    if(t&&Array.isArray(t.people)){
+      tablesClean[k]={
+        ...t,
+        people:t.people.map(p=>({
+          name:p.name||'',
+          items:(p.items||[]).map(i=>({
+            id:i.id,name:i.name,price:i.price,qty:i.qty,
+            emoji:i.emoji,status:i.status||'nuevo',
+            note:i.note||'',ts:i.ts||0,uid:i.uid||Date.now()
+          }))
+        }))
+      };
+    }
+  });
+  db.ref('tables').set(tablesClean).catch(()=>{});
+  if(Array.isArray(S.tids)&&S.tids.length>0){
+    db.ref('tids').set(S.tids).catch(()=>{});
+    db.ref('ntid').set(S.ntid).catch(()=>{});
+  }
+};
+const savePD=()=>{
+  ls('esa_pd',S.pedidos);
+  if(!db) return;
+  if(Array.isArray(S.pedidos)){
+    db.ref('pedidos').set(S.pedidos).catch(()=>{});
+  }
+};
+
+// Inicializa Firebase y escucha cambios
+function initSync(){
+  const s1=document.createElement('script');
+  s1.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
+  s1.onload=()=>{
+    const s2=document.createElement('script');
+    s2.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js';
+    s2.onload=()=>{
+      try{
+        if(!firebase.apps.length) firebase.initializeApp(FB_CFG);
+        db=firebase.database();
+        setSyncDot(true);
+        // Escucha tables
+        db.ref('tables').on('value',snap=>{
+          const v=snap.val();
+          if(!v||typeof v!=='object') return;
+          // Valida y limpia datos antes de aplicar
+          const clean={};
+          Object.entries(v).forEach(([k,t])=>{
+            if(t&&Array.isArray(t.people)){
+              t.people.forEach(p=>{if(!p.items)p.items=[];});
+              clean[k]=t;
+            }
+          });
+          const jsonNew=JSON.stringify(clean);
+          const jsonCur=JSON.stringify(S.tables);
+          if(jsonNew===jsonCur) return; // sin cambios, no re-renderiza
+          S.tables=clean;
+          ls('esa_tb',S.tables);
+          renderTables();
+          if(S.selTable&&S.selTable in S.tables) renderDetail();
+          if(document.getElementById('kitchen-ov').classList.contains('open')) renderKitchen();
+          refreshFab();
+        });
+        // Escucha tids
+        db.ref('tids').on('value',snap=>{
+          const v=snap.val();
+          if(Array.isArray(v)&&v.length>0&&JSON.stringify(v)!==JSON.stringify(S.tids)){
+            S.tids=v;ls('esa_ti',S.tids);renderTables();
+          }
+        });
+        // Escucha pedidos
+        db.ref('pedidos').on('value',snap=>{
+          const v=snap.val();
+          if(!Array.isArray(v)) return;
+          if(JSON.stringify(v)===JSON.stringify(S.pedidos)) return;
+          S.pedidos=v;
+          ls('esa_pd',S.pedidos);
+          if(S.pedidos.length) S.npid=Math.max(...S.pedidos.map(p=>p.id))+1;
+          renderLlevar();
+          if(document.getElementById('kitchen-ov').classList.contains('open')) renderKitchen();
+          refreshFab();
+        });
+        // Escucha ventas
+        db.ref('ventas').on('value',snap=>{
+          const v=snap.val();
+          if(Array.isArray(v)&&v.length>0) {S.ventas=v;ls('esa_v3',S.ventas);}
+        });
+      }catch(e){setSyncDot(false);}
+    };
+    s2.onerror=()=>setSyncDot(false);
+    document.head.appendChild(s2);
+  };
+  s1.onerror=()=>setSyncDot(false);
+  document.head.appendChild(s1);
+}
+function setSyncDot(ok){
+  const d=document.getElementById('sync-dot');
+  if(d){
+    d.style.background=ok?'#22C55E':'#F59E0B';
+    d.title=ok?'☁️ Sincronizado':'⚠️ Sin conexión a nube';
+  }
+}
 
 let S={
   tids:lg('esa_ti',[1,2,3,4,5,6]),
@@ -1195,6 +1319,8 @@ if(!S.tids||!S.tids.length){S.tids=[1,2,3,4,5,6];S.ntid=7;}
 renderTables();
 refreshFab();
 kTime();
+// Inicia sincronización con Firebase en segundo plano
+setTimeout(initSync, 500);
 </script>
 </body>
 </html>
