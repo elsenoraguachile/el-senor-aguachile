@@ -352,7 +352,6 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
     <button id="kitchen-fab" onclick="openKitchen()">
       📺 Cocina <span class="fab-dot" id="fab-dot"></span>
     </button>
-    <span id="sync-dot" style="width:8px;height:8px;border-radius:50%;background:#F59E0B;display:inline-block;margin-left:4px;flex-shrink:0" title="Conectando..."></span>
   </div>
 
   <div id="pages">
@@ -456,150 +455,37 @@ const CATS=["Todos",...new Set(MENU.map(i=>i.cat))];
 const PC=["#E8000A","#3B82F6","#22C55E","#F59E0B","#A855F7","#06B6D4","#EC4899","#84CC16"];
 
 // ══ STORAGE ════════════════════════════════════════════════════════════════════
-// Firebase config
-const FB_CFG={
-  apiKey:"AIzaSyBdcEL71vTHNMaDutlSdaSHZXeSl1FIkPg",
-  authDomain:"el-senor-aguachile.firebaseapp.com",
-  databaseURL:"https://el-senor-aguachile-default-rtdb.firebaseio.com",
-  projectId:"el-senor-aguachile",
-  storageBucket:"el-senor-aguachile.firebasestorage.app",
-  messagingSenderId:"58897809601",
-  appId:"1:58897809601:web:1c58f41b4f554a0c7b1440"
-};
-let db=null, fbReady=false;
-
-function loadFirebase(){
-  return new Promise(resolve=>{
-    const s1=document.createElement('script');
-    s1.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js';
-    s1.onload=()=>{
-      const s2=document.createElement('script');
-      s2.src='https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js';
-      s2.onload=()=>{ firebase.initializeApp(FB_CFG); db=firebase.database(); fbReady=true; resolve(true); };
-      s2.onerror=()=>resolve(false);
-      document.head.appendChild(s2);
-    };
-    s1.onerror=()=>resolve(false);
-    document.head.appendChild(s1);
-  });
-}
-
+// ══ STORAGE (localStorage — guarda 2 meses) ═══════════════════════════════
 const TWO_MO=60*24*60*60*1000;
 const lg=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}};
 const ls=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
-
-function saveV(){
-  S.ventas=S.ventas.filter(v=>v.ts>Date.now()-TWO_MO);
-  ls('esa_v3',S.ventas);
-  if(fbReady) db.ref('ventas').set(S.ventas).catch(()=>{});
-}
-function saveTB(){
-  ls('esa_ti',S.tids);ls('esa_nt',S.ntid);ls('esa_tb',S.tables);
-  if(!fbReady) return;
-  // Solo guarda si hay datos validos
-  if(Array.isArray(S.tids)&&S.tids.length>0){
-    db.ref('tids').set(S.tids).catch(()=>{});
-    db.ref('ntid').set(S.ntid).catch(()=>{});
-  }
-  if(S.tables&&typeof S.tables==='object'){
-    db.ref('tables').set(S.tables).catch(()=>{});
-  }
-}
-function savePD(){
-  ls('esa_pd',S.pedidos);
-  if(fbReady&&Array.isArray(S.pedidos)) db.ref('pedidos').set(S.pedidos).catch(()=>{});
-}
-function setDot(ok){
-  const d=document.getElementById('sync-dot');
-  if(d){d.style.background=ok?'#22C55E':'#F59E0B';d.title=ok?'Nube conectada':'Sin conexion - guardando local';}
-}
+const saveV=()=>{S.ventas=S.ventas.filter(v=>v.ts>Date.now()-TWO_MO);ls('esa_v3',S.ventas);};
+const saveTB=()=>{ls('esa_ti',S.tids);ls('esa_nt',S.ntid);ls('esa_tb',S.tables);};
+const savePD=()=>{ls('esa_pd',S.pedidos);};
 
 let S={
-  tids:lg('esa_ti',[1,2,3,4,5,6])||[1,2,3,4,5,6],
-  ntid:lg('esa_nt',7)||7,
+  tids:lg('esa_ti',[1,2,3,4,5,6]),
+  ntid:lg('esa_nt',7),
   tables:lg('esa_tb',{}),
-  editMode:false, selTable:null, selPerson:0,
-  abrirT:null, abrirP:2,
-  ovCtx:null, ovLid:null, ovCat:"Todos", ovCart:[],
-  cobroCtx:null, cobroLid:null, payMethod:"Efectivo",
+  editMode:false,
+  selTable:null,
+  selPerson:0,
+  abrirT:null,
+  abrirP:2,
+  ovCtx:null,
+  ovLid:null,
+  ovCat:"Todos",
+  ovCart:[],
+  cobroCtx:null,
+  cobroLid:null,
+  payMethod:"Efectivo",
   pedidos:lg('esa_pd',[]),
-  npid:1, lTab:"activos", nlTipo:"mostrador",
+  npid:1,
+  lTab:"activos",
+  nlTipo:"mostrador",
   ventas:lg('esa_v3',[]),
 };
 if(S.pedidos.length) S.npid=Math.max(...S.pedidos.map(p=>p.id))+1;
-
-async function connectFirebase(){
-  // Firebase se conecta en segundo plano — la app ya cargo con localStorage
-  const ok=await loadFirebase();
-  if(!ok){setDot(false);return;}
-  try{
-    const snap=await db.ref('/').once('value');
-    const d=snap.val();
-    // Solo sincroniza si Firebase tiene datos validos
-    if(d){
-      if(Array.isArray(d.tids)&&d.tids.length>0){S.tids=d.tids;ls('esa_ti',S.tids);}
-      if(typeof d.ntid==='number'&&d.ntid>0){S.ntid=d.ntid;ls('esa_nt',S.ntid);}
-      if(d.tables&&typeof d.tables==='object'&&Object.keys(d.tables).length>0){
-        S.tables=d.tables;ls('esa_tb',S.tables);}
-      if(Array.isArray(d.pedidos)&&d.pedidos.length>0){
-        S.pedidos=d.pedidos;ls('esa_pd',S.pedidos);
-        S.npid=Math.max(...S.pedidos.map(p=>p.id))+1;}
-      if(Array.isArray(d.ventas)&&d.ventas.length>0){
-        S.ventas=d.ventas;ls('esa_v3',S.ventas);}
-      renderTables(); renderLlevar(); refreshFab();
-    } else {
-      // Firebase vacio — guarda los defaults para sincronizar
-      saveTB(); savePD(); saveV();
-    }
-    setDot(true);
-
-    // Escucha cambios en tiempo real
-    db.ref('tids').on('value',snap=>{
-      const v=snap.val();
-      if(Array.isArray(v)&&v.length>0&&JSON.stringify(v)!==JSON.stringify(S.tids)){
-        S.tids=v;ls('esa_ti',S.tids);renderTables();
-      }
-    });
-    db.ref('ntid').on('value',snap=>{
-      if(typeof snap.val()==='number'&&snap.val()>0) S.ntid=snap.val();
-    });
-    db.ref('tables').on('value',snap=>{
-      const v=snap.val();
-      if(v===null||v===undefined) return; // ignorar nulos
-      if(typeof v!=='object') return;
-      // Validar que cada mesa tenga people array valido
-      const nuevo={};
-      Object.entries(v).forEach(([k,t])=>{
-        if(t&&Array.isArray(t.people)&&t.people.length>0) nuevo[k]=t;
-        else if(t&&!t.people) nuevo[k]={...t,people:[]}; // reparar mesa sin people
-      });
-      if(JSON.stringify(nuevo)!==JSON.stringify(S.tables)){
-        S.tables=nuevo;ls('esa_tb',S.tables);
-        renderTables();
-        if(S.selTable) renderDetail();
-        if(document.getElementById('kitchen-ov').classList.contains('open')) renderKitchen();
-        refreshFab();
-      }
-    });
-    db.ref('pedidos').on('value',snap=>{
-      const v=snap.val();
-      if(v===null) return;
-      const nuevo=Array.isArray(v)?v:[];
-      if(JSON.stringify(nuevo)!==JSON.stringify(S.pedidos)){
-        S.pedidos=nuevo;ls('esa_pd',S.pedidos);
-        if(S.pedidos.length) S.npid=Math.max(...S.pedidos.map(p=>p.id))+1;
-        renderLlevar();
-        if(document.getElementById('kitchen-ov').classList.contains('open')) renderKitchen();
-        refreshFab();
-      }
-    });
-    db.ref('ventas').on('value',snap=>{
-      const v=snap.val();
-      if(Array.isArray(v)&&v.length>0){S.ventas=v;ls('esa_v3',S.ventas);}
-    });
-  }catch(e){setDot(false);}
-}
-
 
 // ══ UTILS ══════════════════════════════════════════════════════════════════════
 const $=id=>document.getElementById(id);
@@ -1289,10 +1175,16 @@ if(location.search.includes('reset')){
   S.tids=[1,2,3,4,5,6]; S.ntid=7; S.tables={}; S.pedidos=[]; S.ventas=[];
   history.replaceState({},'',location.pathname);
 }
+// Reset de emergencia via ?reset en la URL
+if(location.search.includes('reset')){
+  ['esa_v3','esa_ti','esa_nt','esa_tb','esa_pd'].forEach(k=>localStorage.removeItem(k));
+  S.tids=[1,2,3,4,5,6]; S.ntid=7; S.tables={}; S.pedidos=[]; S.ventas=[];
+  history.replaceState({},'',location.pathname);
+}
+if(!S.tids||!S.tids.length){S.tids=[1,2,3,4,5,6];S.ntid=7;}
 renderTables();
 refreshFab();
 kTime();
-connectFirebase();
 </script>
 </body>
 </html>
