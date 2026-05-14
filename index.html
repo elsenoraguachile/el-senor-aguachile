@@ -564,7 +564,7 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
 
 <script>
 // ══ MENU DATA ══════════════════════════════════════════════════════════════════
-const MENU=[
+let MENU=[
   {id:1,cat:"Aguachiles",name:"Aguachile Verde Chico",price:120,emoji:"🍤"},
   {id:2,cat:"Aguachiles",name:"Aguachile Verde Grande",price:250,emoji:"🍤"},
   {id:3,cat:"Aguachiles",name:"Tosti Aguachile",price:290,emoji:"🍤"},
@@ -593,7 +593,7 @@ const MENU=[
   {id:26,cat:"Postres",name:"Cochoflan",price:50,emoji:"🍮"},
   {id:27,cat:"Postres",name:"Carlota",price:50,emoji:"🍮"},
 ];
-const CATS=["Todos",...new Set(MENU.map(i=>i.cat))];
+let CATS=["Todos",...new Set(MENU.map(i=>i.cat))];
 const PC=["#E8000A","#3B82F6","#22C55E","#F59E0B","#A855F7","#06B6D4","#EC4899","#84CC16"];
 
 // ══ STORAGE ════════════════════════════════════════════════════════════════════
@@ -968,8 +968,14 @@ function renderOvCats(){
 function renderOvGrid(){
   const isL=S.ovCtx==='llevar';
   const grid=$('mog');
+  // Refresca CATS por si cambiaron
+  if(!CATS||CATS.length<=1) CATS=["Todos",...new Set(MENU.map(i=>i.cat))];
   const items=S.ovCat==='Todos'?MENU:MENU.filter(m=>m.cat===S.ovCat);
   grid.innerHTML='';
+  if(!items||!items.length){
+    grid.innerHTML='<div style="text-align:center;color:#333;padding:40px;font-size:14px">Sin platillos en esta categoría</div>';
+    return;
+  }
   items.forEach(item=>{
     const inc=S.ovCart.find(i=>i.id===item.id);
     const b=document.createElement('button');
@@ -1650,14 +1656,12 @@ function removeMenuItem(id){
 }
 
 function updateLiveMenu(){
-  // Reemplaza el menú en memoria sin recargar
-  const m=getMenu();
-  MENU.length=0;
-  m.forEach(i=>MENU.push(i));
-  // Actualiza categorías
-  CATS.length=0;
-  const newCats=["Todos",...new Set(MENU.map(i=>i.cat))];
-  newCats.forEach(c=>CATS.push(c));
+  // Solo aplica si hay menú personalizado guardado
+  const custom=lg('esa_menu',null);
+  if(custom&&Array.isArray(custom)&&custom.length>0){
+    MENU=custom;
+    CATS=["Todos",...new Set(MENU.map(i=>i.cat))];
+  }
 }
 
 // ── VENTAS FILTRADAS POR MESERO ────────────────────────────────────────────────
