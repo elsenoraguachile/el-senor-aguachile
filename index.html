@@ -475,12 +475,13 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
     </div>
     <div id="cambio-section" style="margin-bottom:12px;display:none">
       <div class="lbl">Monto recibido</div>
-      <input id="monto-recibido" type="number" placeholder="Ej: 500" 
+      <div id="bill-btns" style="display:flex;gap:6px;margin-bottom:8px;flex-wrap:wrap"></div>
+      <input id="monto-recibido" type="tel" inputmode="numeric" pattern="[0-9]*" placeholder="O escribe el monto..."
         oninput="calcCambio()"
         style="width:100%;background:#181818;border:1px solid #2D0000;border-radius:8px;padding:10px 12px;color:#F5F0E8;font-size:16px;font-family:inherit;margin-bottom:8px"/>
-      <div id="cambio-display" style="display:none;background:#0A2A0A;border:1px solid #22C55E;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+      <div id="cambio-display" style="display:none;background:#0A2A0A;border:1px solid #22C55E;border-radius:8px;padding:10px 14px;display:flex;justify-content:space-between;align-items:center">
         <span style="font-weight:700;font-size:14px;color:#22C55E">💵 Cambio</span>
-        <span id="cambio-val" style="font-weight:900;font-size:20px;color:#22C55E">$0.00</span>
+        <span id="cambio-val" style="font-weight:900;font-size:22px;color:#22C55E">$0.00</span>
       </div>
     </div>
 
@@ -1253,6 +1254,9 @@ function openCobro(ctx,lid){
   const cd=$('cambio-display'); if(cd) cd.style.display='none';
   const cs=$('cambio-section'); if(cs) cs.style.display=S.payMethod==='Efectivo'?'block':'none';
   S._cambio=0;
+  // Render bill buttons based on total
+  const totalText=$('c-total')?.textContent?.replace(/[^0-9.]/g,'')||'0';
+  renderBillBtns(parseFloat(totalText));
   $('cobro-ov').classList.add('open');
 }
 function closeCobro(){$('cobro-ov').classList.remove('open');}
@@ -1263,7 +1267,36 @@ function setPay(el,m){
   // Mostrar cambio solo para efectivo
   const cs=$('cambio-section');
   if(cs) cs.style.display=m==='Efectivo'?'block':'none';
+  if(m==='Efectivo'){
+    const totalText=$('c-total')?.textContent?.replace(/[^0-9.]/g,'')||'0';
+    renderBillBtns(parseFloat(totalText));
+  }
   calcCambio();
+}
+
+function renderBillBtns(total){
+  const container=$('bill-btns');
+  if(!container) return;
+  const BILLS=[100,200,500,1000];
+  const valid=BILLS.filter(b=>b>total&&total<=1000);
+  if(!valid.length){container.innerHTML='';return;}
+  container.innerHTML=valid.map(b=>`
+    <button id="bill-${b}" onclick="setBill(${b})"
+      style="flex:1;min-width:60px;background:#181818;border:1px solid #333;color:#F5F0E8;border-radius:8px;padding:9px 4px;font-weight:700;font-size:14px;font-family:inherit">
+      $${b>=1000?'1,000':b}
+    </button>`).join('');
+}
+
+function setBill(amount){
+  const mr=$('monto-recibido');
+  if(mr){ mr.value=amount; calcCambio(); }
+  // Highlight selected
+  document.querySelectorAll('[id^="bill-"]').forEach(b=>{
+    const sel=b.id===`bill-${amount}`;
+    b.style.borderColor=sel?'#E8000A':'#333';
+    b.style.background=sel?'rgba(232,0,10,.2)':'#181818';
+    b.style.color=sel?'#E8000A':'#F5F0E8';
+  });
 }
 
 function calcCambio(){
@@ -2003,7 +2036,7 @@ let customMenu = null; // null = usa MENU por defecto
 // Usuarios guardados en localStorage (admin puede cambiarlos)
 function getUsers(){
   const u = lg('esa_users', [DEFAULT_ADMIN]);
-  if(!u.find(x=>x.id==='admin')) u.unshift(DEFAULT_ADMIN);
+  if(!u.find(x=>x.id==='admin')) u.unshift({...DEFAULT_ADMIN});
   return u;
 }
 function saveUsers(users){
@@ -2144,8 +2177,9 @@ function renderAdminUsers(){
         <div style="font-size:11px;color:#555">PIN: ${u.pin}</div>
       </div>
       <span class="user-role ${u.role==='admin'?'admin':''}">${u.role==='admin'?'👑 Admin':'👤 Mesero'}</span>
-      ${u.id==='admin'?'<span style="font-size:11px;color:#333">Fijo</span>'
-        :`<button class="del-user" onclick="removeUser('${u.id}')">✕ Quitar</button>`}
+      ${u.id==='admin'
+        ? `<button class="del-user" style="background:#1A2A3A;border-color:#2A4A6A;color:#79C0FF" onclick="editUserPin('${u.id}')">✏️ PIN</button>`
+        : `<button class="del-user" onclick="removeUser('${u.id}')">✕ Quitar</button>`}
     </div>`).join('');
 }
 
@@ -2169,6 +2203,24 @@ function removeUser(id){
   saveUsers(users);
   renderAdminUsers();
   populateUserSelector();
+}
+
+function editUserPin(id){
+  const users=getUsers();
+  const u=users.find(x=>x.id===id);
+  if(!u) return;
+  const newPin=prompt(`Nuevo PIN para ${u.name} (4 dígitos):`);
+  if(!newPin) return;
+  if(newPin.length!==4||isNaN(newPin)){alert('El PIN debe ser exactamente 4 dígitos');return;}
+  u.pin=newPin;
+  saveUsers(users);
+  // Si es el usuario actual, actualizar sesión
+  if(currentUser&&currentUser.id===id){
+    currentUser.pin=newPin;
+    ls('esa_session',currentUser);
+  }
+  renderAdminUsers();
+  alert(`✓ PIN de ${u.name} actualizado`);
 }
 
 function renderAdminMenu(){
@@ -2244,14 +2296,18 @@ if(location.search.includes('reset')){
 if(!S.tids||!S.tids.length){S.tids=[1,2,3,4,5,6];S.ntid=7;}
 // Cargar menú personalizado si existe
 updateLiveMenu();
-// Forzar actualización del PIN de admin en localStorage
+// Sincronizar admin con DEFAULT_ADMIN siempre
 (()=>{
-  const users = lg('esa_users', []);
+  let users = lg('esa_users', []);
   const adminIdx = users.findIndex(u=>u.id==='admin');
-  if(adminIdx>=0 && users[adminIdx].pin !== DEFAULT_ADMIN.pin){
-    users[adminIdx].pin = DEFAULT_ADMIN.pin;
-    ls('esa_users', users);
+  if(adminIdx>=0){
+    users[adminIdx].pin  = DEFAULT_ADMIN.pin;
+    users[adminIdx].name = DEFAULT_ADMIN.name;
+    users[adminIdx].role = DEFAULT_ADMIN.role;
+  } else {
+    users.unshift(DEFAULT_ADMIN);
   }
+  ls('esa_users', users);
 })();
 // Poblar selector de usuarios
 populateUserSelector();
