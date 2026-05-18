@@ -474,7 +474,7 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
     <div style="margin-bottom:10px">
       <div class="lbl">Ticket por WhatsApp</div>
       <div class="wa-row">
-        <input id="wa-num" class="wa-in" placeholder="10 dígitos (ej: 2851047759)" type="tel" maxlength="10"/>
+        <input id="wa-num" class="wa-in" placeholder="Número (opcional)" type="tel" maxlength="10"/>
         <button class="wa-go" id="wa-go" onclick="sendWA()">📲</button>
       </div>
       <div id="wa-ok" style="font-size:12px;color:#22C55E;margin-top:5px;font-weight:600;display:none">✓ Ticket enviado por WhatsApp</div>
@@ -1241,12 +1241,10 @@ function closeCobro(){$('cobro-ov').classList.remove('open');}
 function setPay(el,m){S.payMethod=m;document.querySelectorAll('.pay-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');}
 
 function sendWA(){
-  let phone=$('wa-num').value.replace(/\D/g,'');
-  if(!phone){alert('Ingresa el número de WhatsApp');return;}
-  if(!phone.startsWith('52')) phone='52'+phone;
-
-  // Generar ticket como imagen con canvas
-  generarTicketImagen(phone);
+  let phone=$('wa-num').value.replace(/[^0-9]/g,'');
+  if(phone&&!phone.startsWith('52')) phone='52'+phone;
+  // Si no hay número, compartir directo (el usuario elige en la hoja)
+  generarTicketImagen(phone||null);
 }
 
 function generarTicketImagen(phone){
@@ -1427,44 +1425,45 @@ function generarYCompartirTicket(phone, folio, titulo, sub, personas, tot, cajer
   canvas.toBlob(blob=>{
     const file=new File([blob],`ticket-${folio}.png`,{type:'image/png'});
     if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
-      navigator.share({files:[file],title:'Ticket El Señor Aguachile'})
-        .then(()=>{ marcarWAOK(); })
-        .catch(()=>fallbackWA(canvas,phone,folio));
-    } else { fallbackWA(canvas,phone,folio); }
+      // Share directo — el usuario elige WhatsApp u otra app
+      navigator.share({
+        files:[file],
+        title:'Ticket El Señor Aguachile',
+        text:'Ticket de El Señor Aguachile 🦐'
+      })
+      .then(()=>{ marcarWAOK(); })
+      .catch(err=>{
+        // Si cancela el share, no hacer nada
+        if(err.name!=='AbortError') fallbackWA(canvas,phone,folio);
+      });
+    } else {
+      // Desktop: descargar imagen
+      fallbackWA(canvas,phone,folio);
+    }
   },'image/png');
 }
 
 function reenviarTicketCaja(idx){
   const v = S.ventas[idx];
   if(!v){ alert('Venta no encontrada'); return; }
-  const phone = prompt('Número de WhatsApp (10 dígitos):');
-  if(!phone) return;
-  let tel = phone.replace(/\D/g,'');
-  if(!tel.startsWith('52')) tel='52'+tel;
 
-  // Reconstruir personas desde la venta guardada
+  // Reconstruir personas
   let personas=[], titulo=v.ref||'', sub='';
   if(v.tipo==='mesa'){
-    // Agrupar items por nombre de persona si existe info
-    const grupos={};
-    (v.items||[]).forEach(i=>{
-      const key = i.persona||'';
-      if(!grupos[key]) grupos[key]=[];
-      grupos[key].push(i);
-    });
-    const keys=Object.keys(grupos);
-    if(keys.length>0&&keys[0]!==''){
-      personas=keys.map(k=>({name:k,items:grupos[k]}));
-    } else {
-      personas=[{name:'',items:v.items||[]}];
-    }
-    sub='';
+    personas=[{name:'', items:v.items||[]}];
   } else {
     titulo=v.ref||'Para Llevar';
-    personas=[{name:'',items:v.items||[]}];
+    personas=[{name:'', items:v.items||[]}];
   }
   const folio='F'+String(v.ts||Date.now()).slice(-6);
-  generarYCompartirTicket(tel, folio, titulo, sub, personas, v.total, v.usuario||'', v.payMethod||'Efectivo');
+  // Pasar null como phone — generarYCompartirTicket abrirá share directo
+  generarYCompartirTicket(null, folio, titulo, sub, personas, v.total, v.usuario||'', v.payMethod||'Efectivo');
+}
+
+function toggleVentaDetail(el){
+  const detail = el.parentElement.querySelector('.venta-detail');
+  if(!detail) return;
+  detail.style.display = detail.style.display==='none' ? 'block' : 'none';
 }
 
 function borrarVenta(idx){
@@ -1715,14 +1714,18 @@ function renderCaja(){
     <!-- Historial del día -->
     <div class="cs">🧾 Ventas — ${lbl}</div>
     ${!vd.length?'<div style="text-align:center;color:#333;padding:24px;font-size:13px">Sin ventas registradas</div>'
-      :[...vd].reverse().map((v,vi)=>{
         const vIdx=S.ventas.length-1-vi;
-        return `<div class="vr ${v.tipo==='llevar'?'llevar':''}">
-          <div class="vr-top"><span style="font-weight:800;font-size:14px">${v.tipo==='llevar'?v.ref:`Mesa ${v.ref?.replace('Mesa ','')}`}</span><span class="vr-ttl">${fmt(v.total)}</span></div>
-          <div style="font-size:11px;color:#555">${v.time} • ${v.tipo==='llevar'?'🛵 Llevar':'🍽️ Local'} • ${v.payMethod}${v.usuario?' • 👤 '+v.usuario:''}</div>
-          <div style="display:flex;gap:7px;margin-top:7px">
-            <button onclick="reenviarTicketCaja(${vIdx})" style="background:#1A2A3A;border:1px solid #2A4A6A;color:#79C0FF;border-radius:7px;padding:5px 12px;font-weight:700;font-size:11px;font-family:inherit">📲 Reenviar</button>
-            ${currentUser&&currentUser.role==='admin'?`<button onclick="borrarVenta(${vIdx})" style="background:#2A0000;border:1px solid #5A0000;color:#FF8080;border-radius:7px;padding:5px 10px;font-weight:700;font-size:11px;font-family:inherit">✕</button>`:''}
+        const itemsHTML=(v.items||[]).map(i=>`<div style='display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#AAA'><span>${i.qty}x ${i.emoji||''} ${i.name}</span><span style='color:#CC0000;font-weight:700'>$${(i.price*i.qty).toFixed(2)}</span></div>`).join('');
+        return `<div class="vr ${v.tipo==='llevar'?'llevar':''}" style="cursor:pointer">
+          <div class="vr-top" onclick="toggleVentaDetail(this)">
+            <span style="font-weight:800;font-size:14px">${v.tipo==='llevar'?v.ref:`Mesa ${v.ref?.replace('Mesa ','')}`}</span>
+            <span class="vr-ttl">${fmt(v.total)}</span>
+          </div>
+          <div style="font-size:11px;color:#555;margin-bottom:6px">${v.time} • ${v.tipo==='llevar'?'🛵 Llevar':'🍽️ Local'} • ${v.payMethod}${v.usuario?' • 👤 '+v.usuario:''}</div>
+          <div class="venta-detail" style="display:none;background:#0A0A0A;border-radius:8px;padding:8px 10px;margin-bottom:8px">${itemsHTML}</div>
+          <div style="display:flex;gap:7px;margin-top:4px">
+            <button onclick="reenviarTicketCaja(${vIdx})" style="background:#1A2A3A;border:1px solid #2A4A6A;color:#79C0FF;border-radius:7px;padding:6px 14px;font-weight:700;font-size:12px;font-family:inherit">📲 Reenviar</button>
+            ${currentUser&&currentUser.role==='admin'?`<button onclick="borrarVenta(${vIdx})" style="background:#2A0000;border:1px solid #5A0000;color:#FF8080;border-radius:7px;padding:6px 10px;font-weight:700;font-size:12px;font-family:inherit">✕</button>`:''}
           </div>
         </div>`;}).join('')}
 
