@@ -371,7 +371,7 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
     </div>
     <div style="margin-left:auto;text-align:right">
       <div id="kv-time" style="font-size:15px;font-weight:700"></div>
-      <button onclick="closeKitchen()" style="background:#2D0000;color:#F5F0E8;border-radius:7px;padding:6px 12px;font-weight:700;font-size:12px;font-family:inherit;margin-top:4px">← Caja</button>
+      <button onclick="closeKitchen()" id="k-back-btn" style="background:#2D0000;color:#F5F0E8;border-radius:7px;padding:6px 12px;font-weight:700;font-size:12px;font-family:inherit;margin-top:4px">← Caja</button>
     </div>
   </div>
   <div class="kv-cols">
@@ -701,7 +701,23 @@ function initSync(){
           refreshFab();
         });
         // Escucha tids
-        db.ref('tids').on('value',snap=>{
+    // Update kitchen back button based on role
+function updateKitchenHeader(){
+  const btn=$('k-back-btn');
+  if(!btn) return;
+  if(currentUser&&currentUser.role==='cocina'){
+    btn.textContent='⏻ Cerrar Sesión';
+    btn.onclick=doLogout;
+    btn.style.background='#1A1A1A';
+    btn.style.borderColor='#333';
+  } else {
+    btn.textContent='← Caja';
+    btn.onclick=closeKitchen;
+    btn.style.background='#2D0000';
+  }
+}
+
+    db.ref('tids').on('value',snap=>{
           const v=snap.val();
           if(Array.isArray(v)&&v.length>0&&JSON.stringify(v)!==JSON.stringify(S.tids)){
             S.tids=v;ls('esa_ti',S.tids);renderTables();
@@ -793,6 +809,15 @@ const pendAll=()=>{
 
 // ══ NAV ════════════════════════════════════════════════════════════════════════
 function goTo(p){
+  // Bloquear acceso si es modo cocina
+  if(currentUser&&currentUser.role==='cocina'){
+    openKitchen(); return;
+  }
+  // Bloquear si no hay sesión
+  if(!currentUser){
+    $('login-screen').style.display='flex';
+    return;
+  }
   document.querySelectorAll('.page').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.bnav').forEach(x=>x.classList.remove('active','active-blue'));
   $('page-'+p).classList.add('active');
@@ -1225,7 +1250,6 @@ function sendWA(){
 }
 
 function generarTicketImagen(phone){
-  // Recopilar datos
   let titulo='', sub='', personas=[], esMesa=S.cobroCtx==='mesa', tot=0;
   const folio='F'+Date.now().toString().slice(-6);
 
@@ -1236,20 +1260,26 @@ function generarTicketImagen(phone){
   } else {
     const p=S.pedidos.find(x=>x.id===S.cobroLid);
     tot=lTotal(p);
-    titulo=`${p.tipo==='domicilio'?'🛵 Domicilio':'🏪 Mostrador'} — ${p.nombre}`;
+    titulo=`${p.tipo==='domicilio'?'Domicilio':'Mostrador'} — ${p.nombre}`;
     sub=p.tel?`Tel: ${p.tel}`:'';
     personas=[{name:'', items:p.items||[]}];
   }
 
   const cajero = currentUser ? currentUser.name.toUpperCase() : '';
-  const W = 800;
-  const LINE_H = 44;
-  const PAD = 48;
+  generarYCompartirTicket(phone, folio, titulo, sub, personas, tot, cajero, S.payMethod);
+}
 
-  // Calcular altura total
-  let totalLines = 0;
-  personas.forEach(p=>{ if(p.name) totalLines++; totalLines+=p.items.length; });
-  const H = 320 + totalLines * LINE_H + 280;
+function generarYCompartirTicket(phone, folio, titulo, sub, personas, tot, cajero, payMethod){
+  // Proporciones de ticket térmico: 576px ancho (58mm a 203dpi)
+  const W = 576;
+  const PAD = 28;
+  const LH = 38; // line height
+  const FS = { big:38, med:26, sm:22, xs:18 };
+
+  // Calcular altura
+  let itemCount = 0;
+  personas.forEach(p=>{ if(p.name) itemCount+=1.5; itemCount+=p.items.length; });
+  const H = Math.ceil(460 + itemCount * LH + 220);
 
   const canvas = document.createElement('canvas');
   canvas.width = W;
@@ -1260,221 +1290,196 @@ function generarTicketImagen(phone){
   ctx.fillStyle = '#FFFFFF';
   ctx.fillRect(0, 0, W, H);
 
-  let y = 0;
+  let y = 24;
 
-  // ── HEADER ──
-  // Camarón emoji grande
-  ctx.font = '90px serif';
+  // ── CAMARÓN EMOJI ──
+  ctx.font = `72px serif`;
   ctx.textAlign = 'center';
-  ctx.fillText('🦐', W/2, 100);
-  y = 110;
+  ctx.fillText('🦐', W/2, y + 72);
+  y += 86;
 
   // Nombre restaurante
   ctx.fillStyle = '#111111';
-  ctx.font = 'bold 52px Arial, sans-serif';
+  ctx.font = `bold ${FS.big}px Arial,sans-serif`;
   ctx.textAlign = 'center';
-  ctx.fillText('EL SEÑOR AGUACHILE', W/2, y + 55);
-  y += 65;
+  ctx.fillText('EL SEÑOR AGUACHILE', W/2, y + FS.big);
+  y += FS.big + 10;
 
   // Subtítulo rojo
   ctx.fillStyle = '#CC0000';
-  ctx.font = 'bold 24px Arial, sans-serif';
-  ctx.letterSpacing = '3px';
-  ctx.fillText('RESTAURANTE DE MARISCOS', W/2, y + 30);
-  y += 44;
+  ctx.font = `bold ${FS.sm}px Arial,sans-serif`;
+  ctx.fillText('RESTAURANTE DE MARISCOS', W/2, y + FS.sm);
+  y += FS.sm + 10;
 
   // Dirección
-  ctx.fillStyle = '#666666';
-  ctx.font = '22px Arial, sans-serif';
-  ctx.fillText('Calle 2 de Abril, Col. Palito Verde', W/2, y + 28);
-  y += 36;
-  ctx.fillText('Tel: 285 104 7759', W/2, y + 24);
-  y += 40;
+  ctx.fillStyle = '#666';
+  ctx.font = `${FS.xs}px Arial,sans-serif`;
+  ctx.fillText('Calle 2 de Abril, Col. Palito Verde', W/2, y + FS.xs);
+  y += FS.xs + 6;
+  ctx.fillText('Tel: 285 104 7759', W/2, y + FS.xs);
+  y += FS.xs + 16;
 
-  // Línea divisora gruesa
-  ctx.strokeStyle = '#111111';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y);
-  ctx.stroke();
-  y += 24;
+  // Línea gruesa
+  ctx.strokeStyle = '#111'; ctx.lineWidth = 2.5; ctx.setLineDash([]);
+  ctx.beginPath(); ctx.moveTo(PAD,y); ctx.lineTo(W-PAD,y); ctx.stroke();
+  y += 14;
 
-  // Info mesa / folio
-  ctx.fillStyle = '#111111';
-  ctx.font = 'bold 28px Arial, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText(titulo, PAD, y + 28);
-  ctx.textAlign = 'right';
-  ctx.fillStyle = '#888888';
-  ctx.font = '22px Arial, sans-serif';
-  ctx.fillText(folio, W-PAD, y + 28);
-  y += 38;
+  // Mesa / folio
+  ctx.fillStyle='#111'; ctx.font=`bold ${FS.med}px Arial,sans-serif`;
+  ctx.textAlign='left'; ctx.fillText(titulo, PAD, y+FS.med);
+  ctx.fillStyle='#999'; ctx.font=`${FS.xs}px Arial,sans-serif`;
+  ctx.textAlign='right'; ctx.fillText(folio, W-PAD, y+FS.med);
+  y += FS.med + 8;
 
   if(sub){
-    ctx.fillStyle = '#555555';
-    ctx.font = '22px Arial, sans-serif';
-    ctx.textAlign = 'left';
-    ctx.fillText(sub, PAD, y + 24);
-    y += 32;
+    ctx.fillStyle='#555'; ctx.font=`${FS.xs}px Arial,sans-serif`;
+    ctx.textAlign='left'; ctx.fillText(sub, PAD, y+FS.xs);
+    y += FS.xs + 6;
   }
 
   // Fecha + cajero
-  ctx.fillStyle = '#555555';
-  ctx.font = '22px Arial, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText(`${dateS()} ${nowT()}`, PAD, y + 24);
+  ctx.fillStyle='#555'; ctx.font=`${FS.xs}px Arial,sans-serif`;
+  ctx.textAlign='left'; ctx.fillText(`${dateS()} ${nowT()}`, PAD, y+FS.xs);
   if(cajero){
-    ctx.textAlign = 'right';
-    ctx.fillStyle = '#1F6FEB';
-    ctx.fillText(`👤 ${cajero}`, W-PAD, y + 24);
+    ctx.fillStyle='#1F6FEB'; ctx.font=`bold ${FS.xs}px Arial,sans-serif`;
+    ctx.textAlign='right'; ctx.fillText(`\u{1F465} ${cajero}`, W-PAD, y+FS.xs);
   }
-  y += 40;
+  y += FS.xs + 14;
 
   // Línea dashed
-  ctx.setLineDash([8,6]);
-  ctx.strokeStyle = '#CCCCCC';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  y += 24;
+  ctx.setLineDash([6,5]); ctx.strokeStyle='#CCC'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(PAD,y); ctx.lineTo(W-PAD,y); ctx.stroke();
+  ctx.setLineDash([]); y += 12;
 
-  // Headers columnas
-  ctx.fillStyle = '#888888';
-  ctx.font = 'bold 20px Arial, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('PLATILLO', PAD, y + 22);
-  ctx.textAlign = 'center';
-  ctx.fillText('P.U.', W - 240, y + 22);
-  ctx.textAlign = 'right';
-  ctx.fillText('TOTAL', W-PAD, y + 22);
-  y += 32;
+  // Col headers
+  ctx.fillStyle='#999'; ctx.font=`bold ${FS.xs}px Arial,sans-serif`;
+  ctx.textAlign='left'; ctx.fillText('PLATILLO', PAD, y+FS.xs);
+  ctx.textAlign='right'; ctx.fillText('TOTAL', W-PAD, y+FS.xs);
+  y += FS.xs + 8;
 
-  // Línea bajo headers
-  ctx.strokeStyle = '#DDDDDD';
-  ctx.lineWidth = 1;
-  ctx.beginPath();
-  ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y);
-  ctx.stroke();
-  y += 14;
+  ctx.strokeStyle='#EEE'; ctx.lineWidth=1;
+  ctx.beginPath(); ctx.moveTo(PAD,y); ctx.lineTo(W-PAD,y); ctx.stroke();
+  y += 10;
 
   // ── ITEMS ──
-  personas.forEach(p => {
+  personas.forEach(p=>{
     if(p.name){
-      // Nombre del cliente
-      ctx.fillStyle = '#111111';
-      ctx.font = 'bold 26px Arial, sans-serif';
-      ctx.textAlign = 'left';
-      ctx.fillText(p.name.toUpperCase(), PAD, y + 26);
-      y += LINE_H;
-
-      // Línea bajo nombre cliente
-      ctx.strokeStyle = '#EEEEEE';
-      ctx.lineWidth = 1;
-      ctx.beginPath();
-      ctx.moveTo(PAD, y-8); ctx.lineTo(W-PAD, y-8);
-      ctx.stroke();
+      // Nombre cliente con fondo gris claro
+      ctx.fillStyle='#F5F5F5';
+      ctx.fillRect(PAD-8, y-4, W-PAD*2+16, LH+4);
+      ctx.fillStyle='#111'; ctx.font=`bold ${FS.sm}px Arial,sans-serif`;
+      ctx.textAlign='left'; ctx.fillText(p.name.toUpperCase(), PAD, y+FS.sm);
+      y += LH;
     }
-
-    p.items.forEach(item => {
-      ctx.fillStyle = '#222222';
-      ctx.font = '24px Arial, sans-serif';
-      ctx.textAlign = 'left';
-      const name = `${item.qty}x ${item.name}`;
-      // Truncar si es muy largo
-      const maxW = W - 360;
-      ctx.save();
-      ctx.beginPath();
-      ctx.rect(PAD, y, maxW, LINE_H);
-      ctx.clip();
-      ctx.fillText(name, PAD, y + 26);
-      ctx.restore();
-
-      ctx.textAlign = 'center';
-      ctx.fillStyle = '#666666';
-      ctx.fillText(`$${item.price}`, W-240, y + 26);
-
-      ctx.textAlign = 'right';
-      ctx.fillStyle = '#222222';
-      ctx.font = 'bold 24px Arial, sans-serif';
-      ctx.fillText(`$${(item.price*item.qty).toFixed(2)}`, W-PAD, y + 26);
-      y += LINE_H;
+    p.items.forEach(item=>{
+      ctx.fillStyle='#222'; ctx.font=`${FS.sm}px Arial,sans-serif`;
+      ctx.textAlign='left';
+      // Nombre truncado
+      const nm = `${item.qty}x ${item.name}`;
+      const maxW = W - PAD*2 - 110;
+      let display = nm;
+      if(ctx.measureText(nm).width > maxW){
+        while(ctx.measureText(display+'…').width > maxW && display.length > 0) display=display.slice(0,-1);
+        display += '…';
+      }
+      ctx.fillText(display, PAD, y+FS.sm);
+      ctx.fillStyle='#111'; ctx.font=`bold ${FS.sm}px Arial,sans-serif`;
+      ctx.textAlign='right'; ctx.fillText(`$${(item.price*item.qty).toFixed(2)}`, W-PAD, y+FS.sm);
+      y += LH;
     });
   });
 
-  y += 10;
-
-  // Línea gruesa antes del total
-  ctx.strokeStyle = '#111111';
-  ctx.lineWidth = 3;
-  ctx.beginPath();
-  ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y);
-  ctx.stroke();
-  y += 16;
+  y += 8;
+  // Línea total
+  ctx.strokeStyle='#111'; ctx.lineWidth=2.5;
+  ctx.beginPath(); ctx.moveTo(PAD,y); ctx.lineTo(W-PAD,y); ctx.stroke();
+  y += 14;
 
   // TOTAL
-  ctx.fillStyle = '#111111';
-  ctx.font = 'bold 38px Arial, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('TOTAL', PAD, y + 38);
-  ctx.textAlign = 'right';
-  ctx.fillText(`$${tot.toFixed(2)}`, W-PAD, y + 38);
-  y += 56;
+  ctx.fillStyle='#111'; ctx.font=`bold ${FS.big}px Arial,sans-serif`;
+  ctx.textAlign='left'; ctx.fillText('TOTAL', PAD, y+FS.big);
+  ctx.textAlign='right'; ctx.fillText(`$${tot.toFixed(2)}`, W-PAD, y+FS.big);
+  y += FS.big + 12;
 
-  // Método de pago
-  ctx.fillStyle = '#555555';
-  ctx.font = '24px Arial, sans-serif';
-  ctx.textAlign = 'left';
-  ctx.fillText('Método de pago', PAD, y + 26);
-  ctx.textAlign = 'right';
-  ctx.font = 'bold 24px Arial, sans-serif';
-  ctx.fillStyle = '#111111';
-  ctx.fillText(S.payMethod, W-PAD, y + 26);
-  y += 48;
+  // Método pago
+  ctx.fillStyle='#555'; ctx.font=`${FS.sm}px Arial,sans-serif`;
+  ctx.textAlign='left'; ctx.fillText('Método de pago', PAD, y+FS.sm);
+  ctx.fillStyle='#111'; ctx.font=`bold ${FS.sm}px Arial,sans-serif`;
+  ctx.textAlign='right'; ctx.fillText(payMethod, W-PAD, y+FS.sm);
+  y += FS.sm + 20;
 
-  // Línea dashed final
-  ctx.setLineDash([8,6]);
-  ctx.strokeStyle = '#CCCCCC';
-  ctx.lineWidth = 2;
-  ctx.beginPath();
-  ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y);
-  ctx.stroke();
-  ctx.setLineDash([]);
-  y += 32;
+  // Línea dashed
+  ctx.setLineDash([6,5]); ctx.strokeStyle='#CCC'; ctx.lineWidth=1.5;
+  ctx.beginPath(); ctx.moveTo(PAD,y); ctx.lineTo(W-PAD,y); ctx.stroke();
+  ctx.setLineDash([]); y += 18;
 
   // Footer
-  ctx.fillStyle = '#CC0000';
-  ctx.font = 'bold 28px Arial, sans-serif';
-  ctx.textAlign = 'center';
-  ctx.fillText('¡GRACIAS POR SU PREFERENCIA!', W/2, y + 28);
-  y += 44;
-  ctx.fillStyle = '#666666';
-  ctx.font = '22px Arial, sans-serif';
-  ctx.fillText('¡SABOR QUE ENAMORA! 🌊', W/2, y + 24);
-  y += 36;
-  ctx.fillStyle = '#AAAAAA';
-  ctx.font = '20px Arial, sans-serif';
-  ctx.fillText('— El Señor Aguachile —', W/2, y + 22);
+  ctx.fillStyle='#CC0000'; ctx.font=`bold ${FS.sm}px Arial,sans-serif`;
+  ctx.textAlign='center'; ctx.fillText('¡GRACIAS POR SU PREFERENCIA!', W/2, y+FS.sm);
+  y += FS.sm + 10;
+  ctx.fillStyle='#666'; ctx.font=`${FS.xs}px Arial,sans-serif`;
+  ctx.fillText('¡SABOR QUE ENAMORA! 🌊', W/2, y+FS.xs);
+  y += FS.xs + 8;
+  ctx.fillStyle='#AAA'; ctx.font=`${FS.xs}px Arial,sans-serif`;
+  ctx.fillText('— El Señor Aguachile —', W/2, y+FS.xs);
 
-  // Convertir canvas a imagen y compartir/descargar
-  canvas.toBlob(blob => {
-    const file = new File([blob], `ticket-${folio}.png`, {type:'image/png'});
+  // Compartir
+  canvas.toBlob(blob=>{
+    const file=new File([blob],`ticket-${folio}.png`,{type:'image/png'});
+    if(navigator.share&&navigator.canShare&&navigator.canShare({files:[file]})){
+      navigator.share({files:[file],title:'Ticket El Señor Aguachile'})
+        .then(()=>{ marcarWAOK(); })
+        .catch(()=>fallbackWA(canvas,phone,folio));
+    } else { fallbackWA(canvas,phone,folio); }
+  },'image/png');
+}
 
-    // Intentar Web Share API (funciona en móvil)
-    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
-      navigator.share({
-        files: [file],
-        title: 'Ticket El Señor Aguachile',
-      }).then(()=>{
-        $('wa-ok').style.display='block';
-        $('wa-go').textContent='✓';
-        $('wa-go').style.background='#166534';
-      }).catch(()=>{ fallbackWA(canvas, phone, folio); });
+function reenviarTicketCaja(idx){
+  const v = S.ventas[idx];
+  if(!v){ alert('Venta no encontrada'); return; }
+  const phone = prompt('Número de WhatsApp (10 dígitos):');
+  if(!phone) return;
+  let tel = phone.replace(/\D/g,'');
+  if(!tel.startsWith('52')) tel='52'+tel;
+
+  // Reconstruir personas desde la venta guardada
+  let personas=[], titulo=v.ref||'', sub='';
+  if(v.tipo==='mesa'){
+    // Agrupar items por nombre de persona si existe info
+    const grupos={};
+    (v.items||[]).forEach(i=>{
+      const key = i.persona||'';
+      if(!grupos[key]) grupos[key]=[];
+      grupos[key].push(i);
+    });
+    const keys=Object.keys(grupos);
+    if(keys.length>0&&keys[0]!==''){
+      personas=keys.map(k=>({name:k,items:grupos[k]}));
     } else {
-      fallbackWA(canvas, phone, folio);
+      personas=[{name:'',items:v.items||[]}];
     }
-  }, 'image/png');
+    sub='';
+  } else {
+    titulo=v.ref||'Para Llevar';
+    personas=[{name:'',items:v.items||[]}];
+  }
+  const folio='F'+String(v.ts||Date.now()).slice(-6);
+  generarYCompartirTicket(tel, folio, titulo, sub, personas, v.total, v.usuario||'', v.payMethod||'Efectivo');
+}
+
+function borrarVenta(idx){
+  if(!currentUser||currentUser.role!=='admin'){ alert('Solo el Admin puede borrar ventas.'); return; }
+  if(!confirm('¿Borrar esta venta del historial?')) return;
+  S.ventas.splice(idx,1);
+  saveV();
+  renderCaja();
+}
+
+function marcarWAOK(){
+  const ok=$('wa-ok');
+  if(ok){ok.style.display='block'; ok.textContent='✓ Ticket enviado';}
+  const btn=$('wa-go');
+  if(btn){btn.textContent='✓';btn.style.background='#166534';}
 }
 
 function fallbackWA(canvas, phone, folio){
@@ -1710,10 +1715,16 @@ function renderCaja(){
     <!-- Historial del día -->
     <div class="cs">🧾 Ventas — ${lbl}</div>
     ${!vd.length?'<div style="text-align:center;color:#333;padding:24px;font-size:13px">Sin ventas registradas</div>'
-      :[...vd].reverse().map(v=>`<div class="vr ${v.tipo==='llevar'?'llevar':''}">
+      :[...vd].reverse().map((v,vi)=>{
+        const vIdx=S.ventas.length-1-vi;
+        return `<div class="vr ${v.tipo==='llevar'?'llevar':''}">
           <div class="vr-top"><span style="font-weight:800;font-size:14px">${v.tipo==='llevar'?v.ref:`Mesa ${v.ref?.replace('Mesa ','')}`}</span><span class="vr-ttl">${fmt(v.total)}</span></div>
-          <div style="font-size:11px;color:#555">${v.time} • ${v.tipo==='llevar'?'🛵 Llevar':'🍽️ Local'} • ${v.payMethod}</div>
-        </div>`).join('')}
+          <div style="font-size:11px;color:#555">${v.time} • ${v.tipo==='llevar'?'🛵 Llevar':'🍽️ Local'} • ${v.payMethod}${v.usuario?' • 👤 '+v.usuario:''}</div>
+          <div style="display:flex;gap:7px;margin-top:7px">
+            <button onclick="reenviarTicketCaja(${vIdx})" style="background:#1A2A3A;border:1px solid #2A4A6A;color:#79C0FF;border-radius:7px;padding:5px 12px;font-weight:700;font-size:11px;font-family:inherit">📲 Reenviar</button>
+            ${currentUser&&currentUser.role==='admin'?`<button onclick="borrarVenta(${vIdx})" style="background:#2A0000;border:1px solid #5A0000;color:#FF8080;border-radius:7px;padding:5px 10px;font-weight:700;font-size:11px;font-family:inherit">✕</button>`:''}
+          </div>
+        </div>`;}).join('')}
 
     <!-- Historial días -->
     <div class="cs" style="margin-top:20px">📅 Todos los días</div>
@@ -1729,10 +1740,11 @@ function renderCaja(){
         }).join('')}
     </div>
 
+    ${currentUser&&currentUser.role==='admin'?`
     <div style="display:flex;gap:8px;margin-top:14px">
       ${vd.length?`<button onclick="if(confirm('¿Borrar ventas de ${lbl}?')){S.ventas=S.ventas.filter(v=>v.date!=='${cajaDate}');saveV();renderCaja();}" style="flex:1;background:#1A1A1A;border:1px solid #333;color:#FF8080;border-radius:8px;padding:10px;font-weight:700;font-size:12px;font-family:inherit">🗑️ Borrar ${lbl}</button>`:''}
       ${S.ventas.length?`<button onclick="if(confirm('¿Borrar TODO el historial?')){S.ventas=[];saveV();renderCaja();}" style="flex:1;background:#1A1A1A;border:1px solid #5A0000;color:#FF6060;border-radius:8px;padding:10px;font-weight:700;font-size:12px;font-family:inherit">⚠️ Borrar todo</button>`:''}
-    </div>
+    </div>`:''}
     <div style="height:24px"></div>
   `;
 }
@@ -1894,8 +1906,15 @@ function kMarkAll(ctx,id){
   renderKitchen();refreshFab();
 }
 
-function openKitchen(){$('kitchen-ov').classList.add('open');renderKitchen();}
-function closeKitchen(){$('kitchen-ov').classList.remove('open');renderTables();}
+function openKitchen(){$('kitchen-ov').classList.add('open');renderKitchen();updateKitchenHeader();}
+function closeKitchen(){
+  if(currentUser&&currentUser.role==='cocina'){
+    // En modo cocina no se puede salir — solo logout
+    return;
+  }
+  $('kitchen-ov').classList.remove('open');
+  renderTables();
+}
 
 setInterval(()=>{if($('kitchen-ov').classList.contains('open'))renderKitchen();},30000);
 setInterval(checkNewKitchenOrders, 5000); // Revisa sonido cada 5 segundos
@@ -2016,19 +2035,29 @@ function doLogout(){
   populateUserSelector();
   updatePinDots();
   $('login-error').textContent='';
+  // Restaurar bottom nav y botones ocultos
+  $('bottom-nav').style.display='flex';
+  $('kitchen-fab').style.display='block';
+  // Cerrar cocina si está abierta
+  $('kitchen-ov').classList.remove('open');
   $('login-screen').style.display='flex';
   $('logout-btn').style.display='none';
   $('admin-fab').style.display='none';
 }
 
 function enterKitchenDirect(){
+  currentUser = {id:'cocina', name:'Cocina', role:'cocina', pin:''};
   $('login-screen').style.display='none';
+  // Ocultar bottom nav y topbar buttons — solo cocina
+  $('bottom-nav').style.display='none';
+  $('kitchen-fab').style.display='none';
+  $('logout-btn').style.display='block';
   openKitchen();
 }
 
 // ── ADMIN PANEL ────────────────────────────────────────────────────────────────
 function openAdmin(){
-  if(!currentUser||currentUser.role!=='admin'){alert('Solo el admin puede acceder.');return;}
+  if(!currentUser||currentUser.role!=='admin'){alert('Solo el Admin puede acceder.');return;}
   renderAdminUsers();
   renderAdminMenu();
   $('admin-ov').classList.add('open');
@@ -2150,7 +2179,7 @@ populateUserSelector();
 if(db){ const u=getUsers(); if(u.length>1) db.ref('users').set(u).catch(()=>{}); }
 // Verificar sesión guardada
 const savedSession = lg('esa_session', null);
-if(savedSession && savedSession.name){
+if(savedSession && savedSession.name && savedSession.role !== 'cocina'){
   enterApp(savedSession);
 }
 renderTables();
