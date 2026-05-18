@@ -479,7 +479,7 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
       </div>
       <div id="wa-ok" style="font-size:12px;color:#22C55E;margin-top:5px;font-weight:600;display:none">✓ Ticket enviado por WhatsApp</div>
     </div>
-    <button onclick="doPrint()" style="width:100%;padding:12px;border-radius:8px;background:#1A2A3A;border:1px solid #2A4A6A;color:#F5F0E8;font-weight:700;font-size:13px;font-family:inherit;margin-bottom:10px">🖨️ Imprimir Ticket</button>
+    
     <div style="display:flex;gap:8px">
       <button onclick="closeCobro()" style="flex:1;padding:13px;border-radius:10px;background:#1E1E1E;border:1px solid #333;color:#F5F0E8;font-weight:700;font-size:14px;font-family:inherit">← Cancelar</button>
       <button onclick="confirmarCobro()" style="flex:1;padding:13px;border-radius:10px;background:#14532D;border:1px solid #22C55E;color:#F5F0E8;font-weight:800;font-size:14px;font-family:inherit">✓ Cobrar y Cerrar</button>
@@ -1218,27 +1218,281 @@ function setPay(el,m){S.payMethod=m;document.querySelectorAll('.pay-btn').forEac
 function sendWA(){
   let phone=$('wa-num').value.replace(/\D/g,'');
   if(!phone){alert('Ingresa el número de WhatsApp');return;}
-  // Auto-agregar lada 52 (México) si no la tiene
   if(!phone.startsWith('52')) phone='52'+phone;
-  let lines='',tot=0,titulo='',tipo='mesa';
-  if(S.cobroCtx==='mesa'){
-    const t=S.selTable;const d=S.tables[t];
-    tot=tTotal(t);titulo=`Mesa ${t}`;
-    d.people.forEach((p,i)=>{
-      const s=p.items.reduce((ss,x)=>ss+x.price*x.qty,0);if(!s)return;
-      lines+=`*${p.name}*%0A`;
-      p.items.forEach(i=>{lines+=`  ${i.qty}x ${i.name}  $${(i.price*i.qty).toFixed(2)}%0A`;});
-    });
+
+  // Generar ticket como imagen con canvas
+  generarTicketImagen(phone);
+}
+
+function generarTicketImagen(phone){
+  // Recopilar datos
+  let titulo='', sub='', personas=[], esMesa=S.cobroCtx==='mesa', tot=0;
+  const folio='F'+Date.now().toString().slice(-6);
+
+  if(esMesa){
+    const t=S.selTable; const d=S.tables[t];
+    tot=tTotal(t); titulo=`Mesa ${t}`; sub=`${d.people.length} persona${d.people.length!==1?'s':''}`;
+    personas=d.people.map(p=>({name:p.name, items:(p.items||[]).filter(i=>i.price>0)}));
   } else {
     const p=S.pedidos.find(x=>x.id===S.cobroLid);
-    tot=lTotal(p);titulo=`${p.tipo==='domicilio'?'🛵':'🏪'} ${p.nombre}`;tipo='llevar';
-    p.items.forEach(i=>{lines+=`${i.qty}x ${i.name}  $${(i.price*i.qty).toFixed(2)}%0A`;});
-    if(p.tipo==='domicilio'&&p.dir) lines+=`📍 ${p.dir}%0A`;
+    tot=lTotal(p);
+    titulo=`${p.tipo==='domicilio'?'🛵 Domicilio':'🏪 Mostrador'} — ${p.nombre}`;
+    sub=p.tel?`Tel: ${p.tel}`:'';
+    personas=[{name:'', items:p.items||[]}];
   }
-  const msg=`*🦐 EL SEÑOR AGUACHILE*%0A_Restaurante de Mariscos_%0A%0A${titulo}  •  ${dateS()} ${nowT()}%0A━━━━━━━━━━━━━━━━━━%0A${lines}━━━━━━━━━━━━━━━━━━%0A*TOTAL: $${tot.toFixed(2)}*%0AMétodo: ${S.payMethod}%0A%0A¡Gracias por su preferencia! 🌊%0ACalle 2 de Abril, Col. Palito Verde`;
-  window.open(`https://wa.me/${phone}?text=${msg}`,'_blank');
+
+  const cajero = currentUser ? currentUser.name.toUpperCase() : '';
+  const W = 800;
+  const LINE_H = 44;
+  const PAD = 48;
+
+  // Calcular altura total
+  let totalLines = 0;
+  personas.forEach(p=>{ if(p.name) totalLines++; totalLines+=p.items.length; });
+  const H = 320 + totalLines * LINE_H + 280;
+
+  const canvas = document.createElement('canvas');
+  canvas.width = W;
+  canvas.height = H;
+  const ctx = canvas.getContext('2d');
+
+  // Fondo blanco
+  ctx.fillStyle = '#FFFFFF';
+  ctx.fillRect(0, 0, W, H);
+
+  let y = 0;
+
+  // ── HEADER ──
+  // Camarón emoji grande
+  ctx.font = '90px serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('🦐', W/2, 100);
+  y = 110;
+
+  // Nombre restaurante
+  ctx.fillStyle = '#111111';
+  ctx.font = 'bold 52px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('EL SEÑOR AGUACHILE', W/2, y + 55);
+  y += 65;
+
+  // Subtítulo rojo
+  ctx.fillStyle = '#CC0000';
+  ctx.font = 'bold 24px Arial, sans-serif';
+  ctx.letterSpacing = '3px';
+  ctx.fillText('RESTAURANTE DE MARISCOS', W/2, y + 30);
+  y += 44;
+
+  // Dirección
+  ctx.fillStyle = '#666666';
+  ctx.font = '22px Arial, sans-serif';
+  ctx.fillText('Calle 2 de Abril, Col. Palito Verde', W/2, y + 28);
+  y += 36;
+  ctx.fillText('Tel: 285 104 7759', W/2, y + 24);
+  y += 40;
+
+  // Línea divisora gruesa
+  ctx.strokeStyle = '#111111';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y);
+  ctx.stroke();
+  y += 24;
+
+  // Info mesa / folio
+  ctx.fillStyle = '#111111';
+  ctx.font = 'bold 28px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(titulo, PAD, y + 28);
+  ctx.textAlign = 'right';
+  ctx.fillStyle = '#888888';
+  ctx.font = '22px Arial, sans-serif';
+  ctx.fillText(folio, W-PAD, y + 28);
+  y += 38;
+
+  if(sub){
+    ctx.fillStyle = '#555555';
+    ctx.font = '22px Arial, sans-serif';
+    ctx.textAlign = 'left';
+    ctx.fillText(sub, PAD, y + 24);
+    y += 32;
+  }
+
+  // Fecha + cajero
+  ctx.fillStyle = '#555555';
+  ctx.font = '22px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText(`${dateS()} ${nowT()}`, PAD, y + 24);
+  if(cajero){
+    ctx.textAlign = 'right';
+    ctx.fillStyle = '#1F6FEB';
+    ctx.fillText(`👤 ${cajero}`, W-PAD, y + 24);
+  }
+  y += 40;
+
+  // Línea dashed
+  ctx.setLineDash([8,6]);
+  ctx.strokeStyle = '#CCCCCC';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  y += 24;
+
+  // Headers columnas
+  ctx.fillStyle = '#888888';
+  ctx.font = 'bold 20px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('PLATILLO', PAD, y + 22);
+  ctx.textAlign = 'center';
+  ctx.fillText('P.U.', W - 240, y + 22);
+  ctx.textAlign = 'right';
+  ctx.fillText('TOTAL', W-PAD, y + 22);
+  y += 32;
+
+  // Línea bajo headers
+  ctx.strokeStyle = '#DDDDDD';
+  ctx.lineWidth = 1;
+  ctx.beginPath();
+  ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y);
+  ctx.stroke();
+  y += 14;
+
+  // ── ITEMS ──
+  personas.forEach(p => {
+    if(p.name){
+      // Nombre del cliente
+      ctx.fillStyle = '#111111';
+      ctx.font = 'bold 26px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      ctx.fillText(p.name.toUpperCase(), PAD, y + 26);
+      y += LINE_H;
+
+      // Línea bajo nombre cliente
+      ctx.strokeStyle = '#EEEEEE';
+      ctx.lineWidth = 1;
+      ctx.beginPath();
+      ctx.moveTo(PAD, y-8); ctx.lineTo(W-PAD, y-8);
+      ctx.stroke();
+    }
+
+    p.items.forEach(item => {
+      ctx.fillStyle = '#222222';
+      ctx.font = '24px Arial, sans-serif';
+      ctx.textAlign = 'left';
+      const name = `${item.qty}x ${item.name}`;
+      // Truncar si es muy largo
+      const maxW = W - 360;
+      ctx.save();
+      ctx.beginPath();
+      ctx.rect(PAD, y, maxW, LINE_H);
+      ctx.clip();
+      ctx.fillText(name, PAD, y + 26);
+      ctx.restore();
+
+      ctx.textAlign = 'center';
+      ctx.fillStyle = '#666666';
+      ctx.fillText(`$${item.price}`, W-240, y + 26);
+
+      ctx.textAlign = 'right';
+      ctx.fillStyle = '#222222';
+      ctx.font = 'bold 24px Arial, sans-serif';
+      ctx.fillText(`$${(item.price*item.qty).toFixed(2)}`, W-PAD, y + 26);
+      y += LINE_H;
+    });
+  });
+
+  y += 10;
+
+  // Línea gruesa antes del total
+  ctx.strokeStyle = '#111111';
+  ctx.lineWidth = 3;
+  ctx.beginPath();
+  ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y);
+  ctx.stroke();
+  y += 16;
+
+  // TOTAL
+  ctx.fillStyle = '#111111';
+  ctx.font = 'bold 38px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('TOTAL', PAD, y + 38);
+  ctx.textAlign = 'right';
+  ctx.fillText(`$${tot.toFixed(2)}`, W-PAD, y + 38);
+  y += 56;
+
+  // Método de pago
+  ctx.fillStyle = '#555555';
+  ctx.font = '24px Arial, sans-serif';
+  ctx.textAlign = 'left';
+  ctx.fillText('Método de pago', PAD, y + 26);
+  ctx.textAlign = 'right';
+  ctx.font = 'bold 24px Arial, sans-serif';
+  ctx.fillStyle = '#111111';
+  ctx.fillText(S.payMethod, W-PAD, y + 26);
+  y += 48;
+
+  // Línea dashed final
+  ctx.setLineDash([8,6]);
+  ctx.strokeStyle = '#CCCCCC';
+  ctx.lineWidth = 2;
+  ctx.beginPath();
+  ctx.moveTo(PAD, y); ctx.lineTo(W-PAD, y);
+  ctx.stroke();
+  ctx.setLineDash([]);
+  y += 32;
+
+  // Footer
+  ctx.fillStyle = '#CC0000';
+  ctx.font = 'bold 28px Arial, sans-serif';
+  ctx.textAlign = 'center';
+  ctx.fillText('¡GRACIAS POR SU PREFERENCIA!', W/2, y + 28);
+  y += 44;
+  ctx.fillStyle = '#666666';
+  ctx.font = '22px Arial, sans-serif';
+  ctx.fillText('¡SABOR QUE ENAMORA! 🌊', W/2, y + 24);
+  y += 36;
+  ctx.fillStyle = '#AAAAAA';
+  ctx.font = '20px Arial, sans-serif';
+  ctx.fillText('— El Señor Aguachile —', W/2, y + 22);
+
+  // Convertir canvas a imagen y compartir/descargar
+  canvas.toBlob(blob => {
+    const file = new File([blob], `ticket-${folio}.png`, {type:'image/png'});
+
+    // Intentar Web Share API (funciona en móvil)
+    if(navigator.share && navigator.canShare && navigator.canShare({files:[file]})){
+      navigator.share({
+        files: [file],
+        title: 'Ticket El Señor Aguachile',
+      }).then(()=>{
+        $('wa-ok').style.display='block';
+        $('wa-go').textContent='✓';
+        $('wa-go').style.background='#166534';
+      }).catch(()=>{ fallbackWA(canvas, phone, folio); });
+    } else {
+      fallbackWA(canvas, phone, folio);
+    }
+  }, 'image/png');
+}
+
+function fallbackWA(canvas, phone, folio){
+  // En desktop o si share falla: abrir WhatsApp con texto normal
+  const imgData = canvas.toDataURL('image/png');
+  // Descargar imagen
+  const a = document.createElement('a');
+  a.href = imgData;
+  a.download = `ticket-${folio}.png`;
+  a.click();
+  // Y abrir WhatsApp
+  setTimeout(()=>{
+    window.open(`https://wa.me/${phone}?text=Ticket%20El%20Se%C3%B1or%20Aguachile%20%F0%9F%A6%90%20-%20${folio}`, '_blank');
+  }, 500);
+  $('wa-ok').innerHTML='✓ Imagen descargada — adjúntala en WhatsApp';
   $('wa-ok').style.display='block';
-  $('wa-go').textContent='✓';$('wa-go').style.background='#166534';
+  $('wa-go').textContent='✓';
+  $('wa-go').style.background='#166534';
 }
 
 function doPrint(){
