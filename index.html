@@ -1630,6 +1630,28 @@ function confirmarCobro(){
 // ══ CAJA ═══════════════════════════════════════════════════════════════════════
 let cajaDate=todayISO();
 
+function ventaCard(v, vIdx){
+  const itemsHTML=(v.items||[]).map(i=>
+    `<div style="display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#AAA">
+      <span>${i.qty}x ${i.emoji||''} ${i.name}</span>
+      <span style="color:#CC0000;font-weight:700">$${(i.price*i.qty).toFixed(2)}</span>
+    </div>`
+  ).join('');
+  const isAdmin = currentUser&&currentUser.role==='admin';
+  return `<div class="vr ${v.tipo==='llevar'?'llevar':''}" style="cursor:pointer">
+    <div class="vr-top" onclick="toggleVentaDetail(this)">
+      <span style="font-weight:800;font-size:14px">${v.tipo==='llevar'?v.ref:v.ref||'Mesa'}</span>
+      <span class="vr-ttl">${fmt(v.total)}</span>
+    </div>
+    <div style="font-size:11px;color:#555;margin-bottom:6px">${v.time} • ${v.tipo==='llevar'?'🛵 Llevar':'🍽️ Local'} • ${v.payMethod}${v.usuario?' • 👤 '+v.usuario:''}</div>
+    <div class="venta-detail" style="display:none;background:#0A0A0A;border-radius:8px;padding:8px 10px;margin-bottom:8px">${itemsHTML}</div>
+    <div style="display:flex;gap:7px;margin-top:4px">
+      <button onclick="reenviarTicketCaja(${vIdx})" style="background:#1A2A3A;border:1px solid #2A4A6A;color:#79C0FF;border-radius:7px;padding:6px 14px;font-weight:700;font-size:12px;font-family:inherit">📲 Reenviar</button>
+      ${isAdmin?`<button onclick="borrarVenta(${vIdx})" style="background:#2A0000;border:1px solid #5A0000;color:#FF8080;border-radius:7px;padding:6px 10px;font-weight:700;font-size:12px;font-family:inherit">✕</button>`:''}
+    </div>
+  </div>`;
+}
+
 function renderCaja(){
   const hoy=todayISO();
   const allVentas = currentUser&&currentUser.role!=='admin'
@@ -1714,20 +1736,7 @@ function renderCaja(){
     <!-- Historial del día -->
     <div class="cs">🧾 Ventas — ${lbl}</div>
     ${!vd.length?'<div style="text-align:center;color:#333;padding:24px;font-size:13px">Sin ventas registradas</div>'
-        const vIdx=S.ventas.length-1-vi;
-        const itemsHTML=(v.items||[]).map(i=>`<div style='display:flex;justify-content:space-between;font-size:12px;padding:2px 0;color:#AAA'><span>${i.qty}x ${i.emoji||''} ${i.name}</span><span style='color:#CC0000;font-weight:700'>$${(i.price*i.qty).toFixed(2)}</span></div>`).join('');
-        return `<div class="vr ${v.tipo==='llevar'?'llevar':''}" style="cursor:pointer">
-          <div class="vr-top" onclick="toggleVentaDetail(this)">
-            <span style="font-weight:800;font-size:14px">${v.tipo==='llevar'?v.ref:`Mesa ${v.ref?.replace('Mesa ','')}`}</span>
-            <span class="vr-ttl">${fmt(v.total)}</span>
-          </div>
-          <div style="font-size:11px;color:#555;margin-bottom:6px">${v.time} • ${v.tipo==='llevar'?'🛵 Llevar':'🍽️ Local'} • ${v.payMethod}${v.usuario?' • 👤 '+v.usuario:''}</div>
-          <div class="venta-detail" style="display:none;background:#0A0A0A;border-radius:8px;padding:8px 10px;margin-bottom:8px">${itemsHTML}</div>
-          <div style="display:flex;gap:7px;margin-top:4px">
-            <button onclick="reenviarTicketCaja(${vIdx})" style="background:#1A2A3A;border:1px solid #2A4A6A;color:#79C0FF;border-radius:7px;padding:6px 14px;font-weight:700;font-size:12px;font-family:inherit">📲 Reenviar</button>
-            ${currentUser&&currentUser.role==='admin'?`<button onclick="borrarVenta(${vIdx})" style="background:#2A0000;border:1px solid #5A0000;color:#FF8080;border-radius:7px;padding:6px 10px;font-weight:700;font-size:12px;font-family:inherit">✕</button>`:''}
-          </div>
-        </div>`;}).join('')}
+      :[...vd].reverse().map((v,vi)=>ventaCard(v, S.ventas.length-1-vi)).join('')}
 
     <!-- Historial días -->
     <div class="cs" style="margin-top:20px">📅 Todos los días</div>
