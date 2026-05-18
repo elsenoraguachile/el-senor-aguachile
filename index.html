@@ -6,6 +6,8 @@
 <title>El Señor Aguachile</title>
 <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;600;700;800;900&display=swap" rel="stylesheet"/>
 <link rel="manifest" href="manifest.json"/>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦐</text></svg>"/>
+<link rel="shortcut icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🦐</text></svg>"/>
 <meta name="theme-color" content="#080808"/>
 <meta name="mobile-web-app-capable" content="yes"/>
 <meta name="apple-mobile-web-app-capable" content="yes"/>
@@ -471,6 +473,17 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
         <button class="pay-btn" onclick="setPay(this,'Transfer.')">📲 Transfer.</button>
       </div>
     </div>
+    <div id="cambio-section" style="margin-bottom:12px;display:none">
+      <div class="lbl">Monto recibido</div>
+      <input id="monto-recibido" type="number" placeholder="Ej: 500" 
+        oninput="calcCambio()"
+        style="width:100%;background:#181818;border:1px solid #2D0000;border-radius:8px;padding:10px 12px;color:#F5F0E8;font-size:16px;font-family:inherit;margin-bottom:8px"/>
+      <div id="cambio-display" style="display:none;background:#0A2A0A;border:1px solid #22C55E;border-radius:8px;padding:10px 12px;display:flex;justify-content:space-between;align-items:center">
+        <span style="font-weight:700;font-size:14px;color:#22C55E">💵 Cambio</span>
+        <span id="cambio-val" style="font-weight:900;font-size:20px;color:#22C55E">$0.00</span>
+      </div>
+    </div>
+
     <div style="margin-bottom:10px">
       <div class="lbl">Ticket por WhatsApp</div>
       <div class="wa-row">
@@ -609,7 +622,7 @@ const PC=["#E8000A","#3B82F6","#22C55E","#F59E0B","#A855F7","#06B6D4","#EC4899",
 
 // ══ STORAGE ════════════════════════════════════════════════════════════════════
 // ══ STORAGE ════════════════════════════════════════════════════════════════════
-const TWO_MO=60*24*60*60*1000;
+const TWO_MO=365*24*60*60*1000; // 1 año
 const lg=(k,d)=>{try{const v=localStorage.getItem(k);return v?JSON.parse(v):d;}catch{return d;}};
 const ls=(k,v)=>{try{localStorage.setItem(k,JSON.stringify(v));}catch{}};
 
@@ -1235,10 +1248,42 @@ function openCobro(ctx,lid){
   $('wa-ok').style.display='none';
   $('wa-go').textContent='📲';$('wa-go').style.background='#25D366';
   $('wa-num').value='';
+  // Reset cambio
+  const mr=$('monto-recibido'); if(mr) mr.value='';
+  const cd=$('cambio-display'); if(cd) cd.style.display='none';
+  const cs=$('cambio-section'); if(cs) cs.style.display=S.payMethod==='Efectivo'?'block':'none';
+  S._cambio=0;
   $('cobro-ov').classList.add('open');
 }
 function closeCobro(){$('cobro-ov').classList.remove('open');}
-function setPay(el,m){S.payMethod=m;document.querySelectorAll('.pay-btn').forEach(b=>b.classList.remove('on'));el.classList.add('on');}
+function setPay(el,m){
+  S.payMethod=m;
+  document.querySelectorAll('.pay-btn').forEach(b=>b.classList.remove('on'));
+  el.classList.add('on');
+  // Mostrar cambio solo para efectivo
+  const cs=$('cambio-section');
+  if(cs) cs.style.display=m==='Efectivo'?'block':'none';
+  calcCambio();
+}
+
+function calcCambio(){
+  const totalEl=$('c-total');
+  if(!totalEl) return;
+  const totalText=totalEl.textContent.replace(/[^0-9.]/g,'');
+  const total=parseFloat(totalText)||0;
+  const monto=parseFloat($('monto-recibido')?.value||0);
+  const cd=$('cambio-display');
+  const cv=$('cambio-val');
+  if(monto>0&&monto>=total){
+    const cambio=monto-total;
+    if(cd) cd.style.display='flex';
+    if(cv) cv.textContent=fmt(cambio);
+    S._cambio=cambio;
+  } else {
+    if(cd) cd.style.display='none';
+    S._cambio=0;
+  }
+}
 
 function sendWA(){
   let phone=$('wa-num').value.replace(/[^0-9]/g,'');
@@ -1400,6 +1445,20 @@ function generarYCompartirTicket(phone, folio, titulo, sub, personas, tot, cajer
   y += FS.big + 12;
 
   // Método pago
+  ctx.fillStyle='#555'; ctx.font=`${FS.sm}px Arial,sans-serif`;
+  // Monto recibido y cambio (solo efectivo)
+  if(S._cambio>0){
+    const montoR=parseFloat($('monto-recibido')?.value||0);
+    ctx.fillStyle='#555'; ctx.font=`${FS.sm}px Arial,sans-serif`;
+    ctx.textAlign='left'; ctx.fillText('Recibido', PAD, y+FS.sm);
+    ctx.fillStyle='#111'; ctx.font=`bold ${FS.sm}px Arial,sans-serif`;
+    ctx.textAlign='right'; ctx.fillText(`$${montoR.toFixed(2)}`, W-PAD, y+FS.sm);
+    y+=LH;
+    ctx.fillStyle='#14532D'; ctx.font=`bold ${FS.med}px Arial,sans-serif`;
+    ctx.textAlign='left'; ctx.fillText('💵 CAMBIO', PAD, y+FS.med);
+    ctx.textAlign='right'; ctx.fillText(`$${S._cambio.toFixed(2)}`, W-PAD, y+FS.med);
+    y+=LH+4;
+  }
   ctx.fillStyle='#555'; ctx.font=`${FS.sm}px Arial,sans-serif`;
   ctx.textAlign='left'; ctx.fillText('Método de pago', PAD, y+FS.sm);
   ctx.fillStyle='#111'; ctx.font=`bold ${FS.sm}px Arial,sans-serif`;
@@ -1623,7 +1682,7 @@ function confirmarCobro(){
     p.status='entregado';savePD();
     closeCobro();renderLlevar();
   }
-  venta.usuario = currentUser ? currentUser.name : 'Admin';
+  venta.usuario = currentUser ? currentUser.name : '';
   S.ventas.push(venta);saveV();
 }
 
@@ -2185,6 +2244,15 @@ if(location.search.includes('reset')){
 if(!S.tids||!S.tids.length){S.tids=[1,2,3,4,5,6];S.ntid=7;}
 // Cargar menú personalizado si existe
 updateLiveMenu();
+// Forzar actualización del PIN de admin en localStorage
+(()=>{
+  const users = lg('esa_users', []);
+  const adminIdx = users.findIndex(u=>u.id==='admin');
+  if(adminIdx>=0 && users[adminIdx].pin !== DEFAULT_ADMIN.pin){
+    users[adminIdx].pin = DEFAULT_ADMIN.pin;
+    ls('esa_users', users);
+  }
+})();
 // Poblar selector de usuarios
 populateUserSelector();
 // Si hay usuarios locales y Firebase está listo, sincronizar
