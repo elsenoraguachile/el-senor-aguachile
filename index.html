@@ -358,6 +358,19 @@ input,textarea,select{font-family:inherit;outline:none;border:none}
   </div>
 </div>
 
+
+<!-- ════ VARIANT SELECTOR ════ -->
+<div class="ov" id="ov-variant" style="z-index:500">
+  <div class="sheet" style="padding-bottom:32px">
+    <div class="pill"></div>
+    <div style="font-size:48px;text-align:center;margin-bottom:6px" id="var-emoji"></div>
+    <div style="font-weight:900;font-size:20px;text-align:center;margin-bottom:4px;color:#F5F0E8" id="var-name"></div>
+    <div style="font-size:13px;color:#555;text-align:center;margin-bottom:22px">Selecciona el tamaño</div>
+    <div id="var-options" style="display:flex;flex-direction:column;gap:12px"></div>
+    <button onclick="closeVariantOv()" style="width:100%;margin-top:16px;padding:13px;border-radius:10px;background:#1A1A1A;border:1px solid #333;color:#666;font-weight:700;font-size:14px;font-family:inherit">Cancelar</button>
+  </div>
+</div>
+
 <!-- ════ KITCHEN ════ -->
 <div id="kitchen-ov">
   <div style="background:#0A2A0A;border:1px solid #22C55E;border-radius:8px;padding:8px 14px;margin-bottom:10px;display:flex;align-items:center;justify-content:space-between;font-size:12px">
@@ -600,12 +613,11 @@ let MENU=[
   {id:8,cat:"Camarones",name:"Cam. Empanizados",price:190,emoji:"🦐"},
   {id:9,cat:"Camarones",name:"Cam. Enchipotlados",price:190,emoji:"🦐"},
   {id:10,cat:"Camarones",name:"Cam. al Mojo de Ajo",price:150,emoji:"🦐"},
-  {id:11,cat:"Mojarras",name:"Mojarra Enchilpayada",price:150,emoji:"🐟"},
-  {id:12,cat:"Mojarras",name:"Mojarra Enchipotlada",price:150,emoji:"🐟"},
-  {id:13,cat:"Mojarras",name:"Mojarra Mojo de Ajo",price:150,emoji:"🐟"},
+  {id:11,cat:"Mojarras",name:"Mojarra Enchilpayada",price:150,emoji:"🐟",variants:[{name:"Chica",price:150},{name:"Grande",price:200}]},
+  {id:12,cat:"Mojarras",name:"Mojarra Enchipotlada",price:150,emoji:"🐟",variants:[{name:"Chica",price:150},{name:"Grande",price:200}]},
+  {id:13,cat:"Mojarras",name:"Mojarra Mojo de Ajo",price:150,emoji:"🐟",variants:[{name:"Chica",price:150},{name:"Grande",price:200}]},
   {id:14,cat:"Mojarras",name:"Filete de pescado",price:150,emoji:"🐟"},
-  {id:15,cat:"Ensaladas",name:"Ensalada Camarón Chica",price:150,emoji:"🥗"},
-  {id:16,cat:"Ensaladas",name:"Ensalada Camarón Grande",price:300,emoji:"🥗"},
+  {id:15,cat:"Ensaladas",name:"Ensalada Camarón",price:150,emoji:"🥗",variants:[{name:"Chica",price:150},{name:"Grande",price:300}]},
   {id:17,cat:"Caldos",name:"Caldo de Camarón",price:120,emoji:"🍵"},
   {id:18,cat:"Bebidas",name:"Michelada",price:100,emoji:"🍺"},
   {id:19,cat:"Bebidas",name:"Azulito",price:100,emoji:"🍺"},
@@ -621,7 +633,7 @@ let MENU=[
   {id:29,cat:"Postres",name:"Pay de Piña",price:50,emoji:"🍰"},
   {id:30,cat:"Postres",name:"Cochoflan",price:50,emoji:"🍮"},
   {id:31,cat:"Postres",name:"Carlota",price:50,emoji:"🍮"},
-];
+]
 let CATS=["Todos",...new Set(MENU.map(i=>i.cat))];
 const PC=["#E8000A","#3B82F6","#22C55E","#F59E0B","#A855F7","#06B6D4","#EC4899","#84CC16"];
 
@@ -1083,14 +1095,24 @@ function renderOvGrid(){
     return;
   }
   items.forEach(item=>{
-    const inc=S.ovCart.find(i=>i.id===item.id);
+    // Para items con variantes, mostrar suma de todas las variantes
+    const inc=item.variants
+      ? (S.ovCart.filter(i=>i.id===item.id).reduce((s,i)=>({qty:s.qty+i.qty}),{qty:0}).qty > 0
+         ? {qty:S.ovCart.filter(i=>i.id===item.id).reduce((s,i)=>s+i.qty,0)} : null)
+      : S.ovCart.find(i=>i.id===item.id);
     const b=document.createElement('button');
     b.className='mc'+(inc?(isL?' sel-b':' sel-r'):'');
     b.innerHTML=`${inc?`<span class="mc-badge" style="background:${isL?'#1F6FEB':'#E8000A'}">${inc.qty}</span>`:''}<div class="mc-e">${item.emoji}</div><div class="mc-n">${item.name}</div><div class="mc-p">${fmt(item.price)}</div>`;
     b.onclick=()=>{
+      // Si tiene variantes, mostrar selector
+      if(item.variants&&item.variants.length>0){
+        openVariantOv(item);
+        return;
+      }
       const ex=S.ovCart.find(i=>i.id===item.id);
       if(ex) ex.qty++; else S.ovCart.push({...item,qty:1});
       renderOvGrid();
+      showToast(`${item.name} agregado ✓`);
       const tot=S.ovCart.reduce((s,i)=>s+i.qty,0);
       $('moc-btn').textContent=tot>0?`Agregar ${tot} platillo${tot>1?'s':''} →`:'Selecciona platillos';
     };
@@ -2283,6 +2305,67 @@ function getVentasFiltradas(){
 // Guardar usuario en cada venta
 const _origConfirmarCobro = confirmarCobro;
 
+
+
+// ══ VARIANTES (Chica / Grande) ═════════════════════════════════════════════
+let variantPendingItem = null; // item esperando que se elija variante
+
+function openVariantOv(item){
+  variantPendingItem = item;
+  $('var-emoji').textContent = item.emoji;
+  $('var-name').textContent  = item.name;
+  const opts = $('var-options');
+  opts.innerHTML = item.variants.map((v,i)=>`
+    <button onclick="selectVariant(${i})" style="
+      display:flex;justify-content:space-between;align-items:center;
+      background:#141414;border:2px solid #2D0000;border-radius:14px;
+      padding:18px 20px;font-family:inherit;color:#F5F0E8;cursor:pointer;
+      width:100%">
+      <div style="text-align:left">
+        <div style="font-weight:800;font-size:18px">${v.name}</div>
+        <div style="font-size:12px;color:#666;margin-top:2px">${item.name}</div>
+      </div>
+      <span style="font-weight:900;font-size:22px;color:#CC0000">$${v.price}</span>
+    </button>`).join('');
+  $('ov-variant').classList.add('open');
+}
+
+function selectVariant(idx){
+  if(!variantPendingItem) return;
+  const item    = variantPendingItem;
+  const variant = item.variants[idx];
+  const itemConVariante = {
+    ...item,
+    name:  `${item.name} (${variant.name})`,
+    price: variant.price,
+  };
+  closeVariantOv();
+  const ex = S.ovCart.find(i=>i.id===item.id&&i.name===itemConVariante.name);
+  if(ex) ex.qty++;
+  else S.ovCart.push({...itemConVariante, qty:1});
+  renderOvGrid();
+  // Feedback visual — mostrar toast rápido
+  showToast(`${itemConVariante.name} agregado ✓`);
+}
+
+function showToast(msg){
+  let t=$('esa-toast');
+  if(!t){
+    t=document.createElement('div');
+    t.id='esa-toast';
+    t.style.cssText='position:fixed;bottom:90px;left:50%;transform:translateX(-50%);background:#22C55E;color:#fff;padding:10px 20px;border-radius:20px;font-weight:700;font-size:13px;z-index:9999;transition:opacity .3s;white-space:nowrap;font-family:inherit';
+    document.body.appendChild(t);
+  }
+  t.textContent=msg;
+  t.style.opacity='1';
+  clearTimeout(t._timer);
+  t._timer=setTimeout(()=>t.style.opacity='0', 1800);
+}
+
+function closeVariantOv(){
+  $('ov-variant').classList.remove('open');
+  variantPendingItem = null;
+}
 
 // ══ BOOT ═══════════════════════════════════════════════════════════════════════
 // Reset de emergencia: si la URL tiene ?reset borra todo y recarga limpio
